@@ -26,9 +26,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/ ./
 COPY data/ /app/data/
 COPY --from=frontend-build /build/frontend/dist/ /app/frontend/dist/
+COPY --chmod=755 scripts/start-production.sh /usr/local/bin/start-production
 
 RUN addgroup --system app && adduser --system --ingroup app app \
     && chown -R app:app /app
 USER app
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["start-production"]

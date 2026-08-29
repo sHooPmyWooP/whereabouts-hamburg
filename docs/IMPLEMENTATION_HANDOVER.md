@@ -150,14 +150,14 @@ npm run build
 2. Implement a cross-date Account History screen and API; today's in-progress or finished result already restores across sessions.
 3. Implement logout, account deletion, and password recovery using the existing Account/session foundation.
 4. Add PostgreSQL integration tests for migration round trips, District seeding, and concurrent Account/game writes.
-5. Add production static-file serving, HTTPS cookie configuration, rate limiting, and deployment configuration when a target platform is selected.
+5. Add rate limiting and automated off-host PostgreSQL backups. Production static-file serving and the homelab Docker Compose deployment are configured; TLS termination belongs to the homelab reverse proxy.
 
 ## Known Constraints
 
 - The satellite basemap requires network access to `server.arcgisonline.com` and is subject to Esri service availability and usage terms.
 - Anonymous Players can alter their own localStorage state. This is accepted for the prototype because anonymous results are not server-persisted or ranked.
 - `DATABASE_URL` and a non-placeholder `SESSION_SECRET` of at least 32 characters must be configured when FastAPI imports the application. `SESSION_COOKIE_SECURE` must be `true` in an HTTPS deployment and may be `false` only for local HTTP development.
-- Alembic migrations must be applied before using Account endpoints. Authenticated gameplay requires revision `0002_create_daily_games`; anonymous gameplay remains file-backed and client-persisted.
+- The production container applies Alembic migrations before starting the API. Authenticated gameplay requires the current schema; anonymous gameplay remains file-backed and client-persisted.
 - There is no repository-level browser-test dependency or command. Visual checks use the integrated VS Code browser/Playwright tooling.
 
 ## Recommended Next Slice

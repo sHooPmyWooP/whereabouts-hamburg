@@ -43,6 +43,44 @@ for dir in backend frontend; do
   fi
 done
 
+# Generate a local signing secret when the seeded backend environment still
+# contains the deliberately invalid example value.
+if grep -q '^SESSION_SECRET=replace-this' "$root_dir/backend/.env"; then
+  session_secret="$(
+    cd "$root_dir/backend"
+    "$uv_command" run python -c 'import secrets; print(secrets.token_urlsafe(48))'
+  )"
+  sed -i "s|^SESSION_SECRET=.*$|SESSION_SECRET=$session_secret|" \
+    "$root_dir/backend/.env"
+  echo "Generated SESSION_SECRET in backend/.env"
+fi
+
+configured_database_url="${DATABASE_URL:-$(
+  sed -n 's/^DATABASE_URL=//p' "$root_dir/backend/.env" | tail -n 1
+)}"
+
+# The example URL uses the dev-container service name. When running directly
+# on the host, provide an isolated PostgreSQL container on a localhost port.
+if [[ "$configured_database_url" == *"@postgres:"* ]] && ! (
+  cd "$root_dir/backend"
+  "$uv_command" run python -c \
+    "import socket; socket.gethostbyname('postgres')" >/dev/null 2>&1
+); then
+  if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+    echo "Docker Compose is required for the local development database." >&2
+    echo "Alternatively, set DATABASE_URL in backend/.env to an accessible PostgreSQL instance." >&2
+    exit 1
+  fi
+
+  dev_database_port="${DEV_DATABASE_PORT:-55432}"
+  docker compose -f "$root_dir/compose.dev.yaml" up -d --wait postgres
+  export DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:${dev_database_port}/whereabouts_hamburg"
+  echo "Database: postgresql://127.0.0.1:${dev_database_port}/whereabouts_hamburg"
+fi
+
+# Keep the development schema current before accepting API requests.
+(cd "$root_dir/backend" && "$uv_command" run alembic upgrade head)
+
 # Install frontend deps if missing (vite lives in node_modules).
 if [ ! -x "$root_dir/frontend/node_modules/.bin/vite" ]; then
   (cd "$root_dir/frontend" && npm install)
