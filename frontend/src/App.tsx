@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { ArrowLeft, ArrowRight, Check, CircleUserRound, Compass, Copy, Dices, Flag, Home, LocateFixed, LogIn, RefreshCw, Share2, UserPlus, X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { ExploreApp } from './ExploreApp'
 import { LoginDialog } from './LoginDialog'
 import type { MissedDistrict, Pin, Reveal } from './MapView'
 import { MapView } from './MapView'
@@ -597,6 +598,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
         solvedPinIndices={progress?.solvedPinIndices ?? []}
         showPins={screen !== 'start' || isSeeded}
         previewMode={screen === 'start' && isSeeded}
+        annotateMissedDistricts={screen === 'finished' && !isSeeded}
       />
 
       <header className="brand-bar">
@@ -909,6 +911,7 @@ function App() {
   }
 
   if (path === '/daily') return <DailyApp onHome={() => navigate('/')} />
+  if (path === '/explore') return <ExploreApp onHome={() => navigate('/')} />
   if (path === '/training') {
     return <TrainingApp onHome={() => navigate('/')} onNavigate={navigate} />
   }

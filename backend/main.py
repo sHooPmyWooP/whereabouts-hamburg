@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Path, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -87,6 +87,10 @@ class DistrictSummary(BaseModel):
     id: int
     name: str
     bezirk: str
+
+
+class ExploreDistrict(DistrictSummary):
+    boundary: dict[str, Any]
 
 
 class PublicPin(BaseModel):
@@ -263,6 +267,21 @@ def game_guess_history(game: GameDailyDistricts) -> list[dict[str, Any]]:
 def list_districts() -> list[DistrictSummary]:
     return [
         DistrictSummary(id=district.id, name=district.name, bezirk=district.bezirk)
+        for district in catalog.districts
+    ]
+
+
+@app.get("/api/explore/districts", response_model=list[ExploreDistrict])
+def explore_districts(response: Response) -> list[ExploreDistrict]:
+    """Return public Stadtteil geometry for the interactive explorer."""
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return [
+        ExploreDistrict(
+            id=district.id,
+            name=district.name,
+            bezirk=district.bezirk,
+            boundary=district.boundary,
+        )
         for district in catalog.districts
     ]
 

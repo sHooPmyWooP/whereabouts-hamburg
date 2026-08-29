@@ -16,6 +16,7 @@ type TrainingMapProps = {
   direction: 'name' | 'find'
   targetDistrictId: number | null
   selectedDistrictId: number | null
+  highlightedBezirke: string[]
   answered: boolean
   correct: boolean | null
   onSelect: (districtId: number) => void
@@ -25,6 +26,16 @@ const HAMBURG_BOUNDS = L.latLngBounds(
   [53.39, 9.72],
   [53.75, 10.32],
 )
+
+const BEZIRK_COLORS: Record<string, { border: string; fill: string }> = {
+  Altona: { border: '#2457a6', fill: '#4f83d1' },
+  Bergedorf: { border: '#087f5b', fill: '#34b27b' },
+  Eimsbüttel: { border: '#6d3e9c', fill: '#9b6ac4' },
+  Harburg: { border: '#a43d65', fill: '#d16b91' },
+  'Hamburg-Mitte': { border: '#b94338', fill: '#e76f61' },
+  'Hamburg-Nord': { border: '#14758c', fill: '#49a7bb' },
+  Wandsbek: { border: '#9a6500', fill: '#d99b24' },
+}
 
 /** Keep Name It contextual and Find It city-wide until feedback is shown. */
 function TrainingViewport({
@@ -97,6 +108,7 @@ function TrainingBoundary({
     const cleanups: Array<() => void> = []
     layerRef.current?.eachLayer((layer) => {
       if (!(layer instanceof L.Path)) return
+      if (selected) layer.bringToFront()
       const element = layer.getElement()
       if (!element) return
       element.setAttribute('role', selectable ? 'button' : 'img')
@@ -142,13 +154,14 @@ export function TrainingMap({
   direction,
   targetDistrictId,
   selectedDistrictId,
+  highlightedBezirke,
   answered,
   correct,
   onSelect,
 }: TrainingMapProps) {
-  function districtStyle(districtId: number): L.PathOptions {
-    const isTarget = districtId === targetDistrictId
-    const isSelected = districtId === selectedDistrictId
+  function districtStyle(district: TrainingDistrict): L.PathOptions {
+    const isTarget = district.id === targetDistrictId
+    const isSelected = district.id === selectedDistrictId
     if (answered && isTarget) {
       return {
         color: '#087f5b',
@@ -178,18 +191,31 @@ export function TrainingMap({
     }
     if (!answered && direction === 'find' && isSelected) {
       return {
-        color: '#155e75',
-        fillColor: '#38bdf8',
-        fillOpacity: 0.38,
+        color: '#075f47',
+        fillColor: '#18a573',
+        fillOpacity: 0.62,
         opacity: 1,
-        weight: 3,
+        weight: 4,
+      }
+    }
+    if (highlightedBezirke.includes(district.bezirk)) {
+      const colors = BEZIRK_COLORS[district.bezirk] ?? {
+        border: '#405a50',
+        fill: '#789486',
+      }
+      return {
+        color: colors.border,
+        fillColor: colors.fill,
+        fillOpacity: 0.4,
+        opacity: 0.95,
+        weight: 1.75,
       }
     }
     return {
       color: '#64756e',
       fillColor: '#dce4df',
-      fillOpacity: 0.2,
-      opacity: 0.78,
+      fillOpacity: 0.12,
+      opacity: 0.68,
       weight: 1.25,
     }
   }
@@ -201,7 +227,7 @@ export function TrainingMap({
         zoom={10}
         minZoom={9}
         maxZoom={16}
-        zoomControl
+        zoomControl={false}
         attributionControl
       >
         <TileLayer
@@ -213,13 +239,14 @@ export function TrainingMap({
           direction={direction}
           targetDistrictId={targetDistrictId}
           selectedDistrictId={selectedDistrictId}
+          highlightedBezirke={highlightedBezirke}
           answered={answered}
         />
         {districts.map((district) => (
           <TrainingBoundary
             key={district.id}
             district={district}
-            style={districtStyle(district.id)}
+            style={districtStyle(district)}
             selectable={direction === 'find' && !answered}
             selected={district.id === selectedDistrictId}
             onSelect={onSelect}

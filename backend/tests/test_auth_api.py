@@ -104,6 +104,27 @@ def test_login_rejects_credentials_without_account_disclosure(
     assert "set-cookie" not in response.headers
 
 
+def test_logout_clears_session_cookie(client: TestClient) -> None:
+    """Signing out invalidates the browser session without deleting the Account."""
+    registered = client.post(
+        "/api/auth/register",
+        json={"username": "SigningOut", "password": "valid-password"},
+    )
+
+    logout = client.post("/api/auth/logout")
+    current = client.get("/api/auth/me")
+
+    assert registered.status_code == 201
+    assert logout.status_code == 200
+    assert logout.json() == {"status": "signed_out"}
+    assert logout.headers["cache-control"] == "no-store"
+    assert f'{SESSION_COOKIE_NAME}=""' in logout.headers["set-cookie"]
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+    assert current.status_code == 401
+    with TestSession() as database:
+        assert database.scalar(select(Account).where(Account.username == "SigningOut"))
+
+
 def test_current_account_rejects_missing_and_tampered_sessions(
     client: TestClient,
 ) -> None:

@@ -104,6 +104,7 @@ PostgreSQL connectivity, Account registration, password login, and authenticated
 | `GET` | `/health` | FastAPI process health |
 | `GET` | `/health/database` | PostgreSQL connectivity probe |
 | `GET` | `/api/districts` | Public autocomplete metadata for 104 Stadtteile |
+| `GET` | `/api/explore/districts` | Public named Stadtteil geometry for the interactive explorer |
 | `GET` | `/api/daily` | Public Pins and anonymous defaults or restored Account progress |
 | `POST` | `/api/daily/guess` | Evaluate anonymous state or transactionally update an Account Game |
 | `POST` | `/api/daily/give-up` | Finish the anonymous Daily round and reveal all answers |
@@ -112,6 +113,7 @@ PostgreSQL connectivity, Account registration, password login, and authenticated
 | `POST` | `/api/challenges/{seed}/give-up` | Finish a seeded round and reveal all answers |
 | `POST` | `/api/auth/register` | Create an Account, hash its password, and establish a session |
 | `POST` | `/api/auth/login` | Verify an existing Account and establish a session |
+| `POST` | `/api/auth/logout` | Clear the signed browser session cookie |
 | `GET` | `/api/auth/me` | Restore the Account represented by the signed session cookie |
 
 The current API schemas live in [../backend/main.py](../backend/main.py). Pure challenge, geometry, and Guess logic lives in [../backend/game.py](../backend/game.py).
@@ -148,7 +150,7 @@ npm run build
 
 1. Add a persistent `district` reference table and seed the 104 rows idempotently from normalized GeoJSON. Runtime District data currently remains file-backed.
 2. Implement a cross-date Account History screen and API; today's in-progress or finished result already restores across sessions.
-3. Implement logout, account deletion, and password recovery using the existing Account/session foundation.
+3. Implement account deletion and password recovery using the existing Account/session foundation.
 4. Add PostgreSQL integration tests for migration round trips, District seeding, and concurrent Account/game writes.
 5. Add rate limiting and automated off-host PostgreSQL backups. Production static-file serving and the homelab Docker Compose deployment are configured; TLS termination belongs to the homelab reverse proxy.
 

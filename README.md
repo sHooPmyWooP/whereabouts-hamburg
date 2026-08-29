@@ -6,7 +6,7 @@ A map game for learning Hamburg's Stadtteile. Play a deterministic daily challen
 
 - Daily challenge with five map pins and a shared guess budget
 - Shareable rounds generated from a custom seed
-- Interactive Stadtteil training in both name-to-map and map-to-name directions
+- Interactive Stadtteil explorer and training in both name-to-map and map-to-name directions
 - Optional accounts with Argon2 password hashing and persistent progress
 - Responsive React and Leaflet interface
 - FastAPI backend with PostgreSQL persistence and Alembic migrations

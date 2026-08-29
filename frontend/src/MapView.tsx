@@ -36,6 +36,7 @@ type MapViewProps = {
   solvedPinIndices: number[]
   showPins: boolean
   previewMode: boolean
+  annotateMissedDistricts: boolean
 }
 
 const HAMBURG_BOUNDS = L.latLngBounds(
@@ -90,6 +91,7 @@ export function MapView({
   solvedPinIndices,
   showPins,
   previewMode,
+  annotateMissedDistricts,
 }: MapViewProps) {
   const solved = new Set(solvedPinIndices)
 
@@ -126,7 +128,18 @@ export function MapView({
                 opacity: 0.95,
                 weight: 2,
               }}
-            />
+            >
+              {annotateMissedDistricts ? (
+                <Tooltip
+                  permanent
+                  direction="center"
+                  className={`miss-label${isFar ? ' miss-label--far' : ''}`}
+                >
+                  <span>{district.district_name}</span>
+                  <small>{district.distance_km.toFixed(1)} km</small>
+                </Tooltip>
+              ) : null}
+            </GeoJSON>
           )
         })}
 

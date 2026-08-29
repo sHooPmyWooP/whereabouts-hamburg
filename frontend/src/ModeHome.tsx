@@ -8,6 +8,8 @@ import {
   GraduationCap,
   LockKeyhole,
   LogIn,
+  LogOut,
+  MapPinned,
   UserPlus,
 } from 'lucide-react'
 import { ApiError, apiFetch } from './api'
@@ -20,13 +22,14 @@ type ModeHomeProps = {
   onNavigate: (path: string) => void
 }
 
-/** Present Daily and authenticated Training as equal application modes. */
+/** Present the Daily, Training, and Explore application modes. */
 export function ModeHome({ onNavigate }: ModeHomeProps) {
   const [account, setAccount] = useState<Account | null>(null)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(false)
   const [trainingPending, setTrainingPending] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -65,6 +68,22 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
     if (trainingPending) onNavigate('/training')
   }
 
+  /** Clear the Account session while keeping the mode selection open. */
+  async function signOut() {
+    if (signingOut) return
+    setSigningOut(true)
+    setAccountError(null)
+    try {
+      await apiFetch<{ status: string }>('/api/auth/logout', { method: 'POST' })
+      setAccount(null)
+      setTrainingPending(false)
+    } catch (reason) {
+      setAccountError(reason instanceof Error ? reason.message : 'Could not sign out.')
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
   /** Close login and restore focus to the mode that opened it. */
   function closeLogin() {
     setLoginOpen(false)
@@ -80,7 +99,7 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
 
   return (
     <main className="mode-home">
-      <MapView pins={[]} reveals={[]} missedDistricts={[]} solvedPinIndices={[]} showPins={false} previewMode={false} />
+      <MapView pins={[]} reveals={[]} missedDistricts={[]} solvedPinIndices={[]} showPins={false} previewMode={false} annotateMissedDistricts={false} />
       <header className="brand-bar mode-home__brand">
         <span className="brand-mark"><Compass size={18} strokeWidth={2.4} /></span>
         <span>Hamburg Whereabouts</span>
@@ -103,13 +122,23 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
             <span className="mode-option__copy"><strong>Training</strong><small>Remember every Stadtteil.</small></span>
             {account ? <ArrowRight size={20} aria-hidden="true" /> : <LockKeyhole size={19} aria-label="Sign in required" />}
           </button>
+          <button className="mode-option mode-option--explore" type="button" onClick={() => onNavigate('/explore')}>
+            <span className="mode-option__icon"><MapPinned aria-hidden="true" /></span>
+            <span className="mode-option__copy"><strong>Explore</strong><small>Discover Hamburg at your own pace.</small></span>
+            <ArrowRight size={20} aria-hidden="true" />
+          </button>
         </div>
         <div className="mode-account">
           {account ? (
-            <div className="account-status account-status--light" aria-label={`Signed in as ${account.username}`}>
-              <CircleUserRound size={18} aria-hidden="true" />
-              <span>Signed in as <strong>{account.username}</strong></span>
-            </div>
+            <>
+              <div className="account-status account-status--light" aria-label={`Signed in as ${account.username}`}>
+                <CircleUserRound size={18} aria-hidden="true" />
+                <span>Signed in as <strong>{account.username}</strong></span>
+              </div>
+              <button type="button" disabled={signingOut} onClick={() => void signOut()}>
+                <LogOut size={17} aria-hidden="true" /> {signingOut ? 'Signing out…' : 'Sign out'}
+              </button>
+            </>
           ) : (
             <>
               <button type="button" onClick={() => setLoginOpen(true)}><LogIn size={17} /> Log in</button>

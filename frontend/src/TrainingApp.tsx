@@ -10,6 +10,7 @@ import {
   Layers3,
   LockKeyhole,
   LogIn,
+  LogOut,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -123,6 +124,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [authenticationRequired, setAuthenticationRequired] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
@@ -185,6 +187,24 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       nextButtonRef.current?.focus()
     }
   }, [direction, question, submitting, view])
+
+  /** End the Account session and return Training to its authentication gate. */
+  async function signOut() {
+    if (signingOut) return
+    setSigningOut(true)
+    setError(null)
+    try {
+      await apiFetch<{ status: string }>('/api/auth/logout', { method: 'POST' })
+      setBootstrap(null)
+      setQuestion(null)
+      setFeedback(null)
+      setAuthenticationRequired(true)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not sign out.')
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   /** Restore Training immediately after a successful login or registration. */
   async function handleAuthenticated() {
@@ -477,6 +497,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
         direction={direction}
         targetDistrictId={question?.district_id ?? feedback?.answer.district_id ?? null}
         selectedDistrictId={selectedDistrictId ?? feedback?.selected?.district_id ?? null}
+        highlightedBezirke={view === 'setup' ? selectedBezirke : []}
         answered={view === 'feedback'}
         correct={feedback?.correct ?? null}
         onSelect={setSelectedDistrictId}
@@ -487,9 +508,14 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
           <Home size={19} aria-hidden="true" />
         </button>
         <div className="training-brand"><Layers3 size={18} aria-hidden="true" /><span>Hamburg Training</span></div>
-        <button className="icon-action icon-action--surface" type="button" onClick={() => onNavigate('/training/progress')} aria-label="View Training progress" title="Progress">
-          <BarChart3 size={19} aria-hidden="true" />
-        </button>
+        <div className="training-topbar__actions">
+          <button className="icon-action icon-action--surface" type="button" onClick={() => onNavigate('/training/progress')} aria-label="View Training progress" title="Progress">
+            <BarChart3 size={19} aria-hidden="true" />
+          </button>
+          <button className="icon-action icon-action--surface" type="button" disabled={signingOut} onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
+            <LogOut size={19} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       <aside className="training-panel" aria-live="polite">

@@ -151,6 +151,20 @@ def login_account(
     return _public_account(account)
 
 
+@router.post("/logout")
+def logout_account(response: Response) -> dict[str, str]:
+    """End the browser session without modifying the Account."""
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return {"status": "signed_out"}
+
+
 @router.get("/me", response_model=AccountResponse)
 def get_current_account(
     response: Response,
