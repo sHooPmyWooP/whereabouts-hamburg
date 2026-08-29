@@ -81,8 +81,7 @@ For an internet-facing deployment, put an HTTPS reverse proxy such as Caddy, Tra
 docker compose logs -f
 
 # Pull repository changes, rebuild, migrate, and restart
-git pull
-docker compose up -d --build
+make up
 
 # Back up PostgreSQL
 docker compose exec -T postgres sh -c \

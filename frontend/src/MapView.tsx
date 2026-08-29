@@ -8,6 +8,7 @@ import {
   TileLayer,
   Tooltip,
   useMap,
+  ZoomControl,
 } from 'react-leaflet'
 
 export type Pin = {
@@ -105,6 +106,7 @@ export function MapView({
         zoomControl={false}
         attributionControl
       >
+        <ZoomControl position="topright" />
         <TileLayer
           attribution="Imagery &copy; Esri"
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

@@ -363,6 +363,16 @@ def submit_guess(
             raise HTTPException(status_code=409, detail="Daily Challenge state is unavailable")
         if game.status == "finished" or game.budget_remaining <= 0:
             raise HTTPException(status_code=409, detail="Today's Daily Challenge is already finished")
+        previous_guess = database.scalar(
+            select(Guess.id)
+            .where(
+                Guess.game_id == game.id,
+                Guess.guessed_district_id == guessed_district.id,
+            )
+            .limit(1)
+        )
+        if previous_guess is not None:
+            raise HTTPException(status_code=409, detail="This Stadtteil has already been guessed")
         solved_pin_indices = set(game.solved_pin_indices)
         budget_remaining = game.budget_remaining
     else:

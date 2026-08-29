@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GeoJsonObject } from 'geojson'
 import L from 'leaflet'
 import { Compass, Home, MapPinned, X } from 'lucide-react'
-import { GeoJSON, MapContainer, TileLayer, Tooltip } from 'react-leaflet'
+import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl } from 'react-leaflet'
 import { apiFetch } from './api'
 
 type ExploreDistrict = {
@@ -107,6 +107,7 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
           zoomControl={false}
           attributionControl
         >
+          <ZoomControl position="topright" />
           <TileLayer
             attribution="Imagery &copy; Esri"
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

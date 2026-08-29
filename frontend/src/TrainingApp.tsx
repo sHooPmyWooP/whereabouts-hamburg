@@ -563,11 +563,10 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
         ) : null}
 
         {view === 'question' && question ? (
-          <section className="training-question" aria-labelledby="training-question-title">
+          <section className="training-question" aria-label={direction === 'name' ? 'Name the Stadtteil' : `Find ${question.prompt_name}`}>
             <p className="eyebrow">Question {sessionAttempts + 1}</p>
             {direction === 'name' ? (
               <>
-                <h1 id="training-question-title">Which Stadtteil is this?</h1>
                 <form className="training-answer-form" onSubmit={handleNameSubmit}>
                   <label htmlFor="training-answer">Stadtteil name</label>
                   <div className="guess-control">
@@ -586,7 +585,6 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
                       aria-activedescendant={activeSuggestionIndex >= 0 ? `training-suggestion-${suggestions[activeSuggestionIndex]?.id}` : undefined}
                       readOnly={submitting}
                     />
-                    <button type="submit" disabled={!answerText.trim() || submitting} aria-label="Submit answer"><ArrowRight size={20} /></button>
                   </div>
                   {suggestions.length > 0 ? (
                     <div className="training-suggestions" id="training-suggestions" role="listbox">
@@ -610,7 +608,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
               </>
             ) : (
               <>
-                <h1 id="training-question-title">Where is {question.prompt_name}?</h1>
+                <h1>Where is {question.prompt_name}?</h1>
                 <p>Select a boundary on the map. You can change it before confirming.</p>
                 <div className="selected-answer" aria-live="polite">
                   {selectedDistrictId !== null ? <><span>Selected</span><strong>Area selected</strong></> : <span>No Stadtteil selected</span>}

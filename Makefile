@@ -5,7 +5,7 @@ NPM      ?= npm
 BACKEND  := backend
 FRONTEND := frontend
 
-.PHONY: help install install-backend install-frontend dev dev-backend dev-frontend \
+.PHONY: help install install-backend install-frontend dev dev-backend dev-frontend up \
         build test test-backend lint lint-backend lint-frontend format clean
 
 help: ## Show this help
@@ -28,6 +28,9 @@ dev-backend: ## Run the backend development server
 
 dev-frontend: ## Run the frontend development server
 	cd $(FRONTEND) && $(NPM) run dev -- --host 0.0.0.0 --port 5173
+
+up: ## Update and restart the live Docker Compose application
+	docker compose up -d --build
 
 build: ## Build the production frontend
 	cd $(FRONTEND) && $(NPM) run build

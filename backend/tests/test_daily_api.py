@@ -85,6 +85,32 @@ def test_miss_returns_distance_and_spends_budget() -> None:
     assert result["reveals"] == []
 
 
+def test_authenticated_duplicate_guess_does_not_spend_budget(client: TestClient) -> None:
+    client.post(
+        "/api/auth/register",
+        json={"username": "DuplicatePlayer", "password": "valid-password"},
+    )
+    challenge_date = current_challenge_date()
+    answer_ids = {pin.district.id for pin in challenge_generator.generate(challenge_date)}
+    miss = next(district for district in catalog.districts if district.id not in answer_ids)
+    payload = {
+        "challenge_date": challenge_date.isoformat(),
+        "guessed_district_id": miss.id,
+    }
+
+    first = client.post("/api/daily/guess", json=payload)
+    repeated = client.post("/api/daily/guess", json=payload)
+    restored = client.get("/api/daily")
+
+    assert first.status_code == 200
+    assert first.json()["budget_remaining"] == 9
+    assert repeated.status_code == 409
+    assert repeated.json() == {"detail": "This Stadtteil has already been guessed"}
+    assert restored.status_code == 200
+    assert restored.json()["budget_remaining"] == 9
+    assert len(restored.json()["guess_history"]) == 1
+
+
 def test_last_guess_reveals_every_pin() -> None:
     challenge_date = current_challenge_date()
     pins = challenge_generator.generate(challenge_date)
@@ -185,9 +211,9 @@ def test_authenticated_finished_game_cannot_be_replayed(client: TestClient) -> N
     challenge_date = current_challenge_date()
     pins = challenge_generator.generate(challenge_date)
     answer_ids = {pin.district.id for pin in pins}
-    miss = next(district for district in catalog.districts if district.id not in answer_ids)
+    misses = [district for district in catalog.districts if district.id not in answer_ids]
 
-    for _ in range(10):
+    for miss in misses[:10]:
         response = client.post(
             "/api/daily/guess",
             json={

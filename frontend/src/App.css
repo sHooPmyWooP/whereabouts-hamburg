@@ -31,6 +31,9 @@
   background: rgb(250 249 244 / 78%) !important;
   font-size: 10px !important;
 }
+.leaflet-control-zoom {
+  display: none;
+}
 
 .pin-label {
   min-width: 22px;
@@ -635,7 +638,7 @@
 
 .guess-control {
   display: grid;
-  grid-template-columns: 1fr 48px;
+  grid-template-columns: 1fr auto 48px;
   height: 52px;
   background: #fff;
   border: 1px solid #c8ceca;
@@ -660,6 +663,16 @@
 
 .guess-control input::placeholder {
   color: #9aa39f;
+}
+
+.guess-count {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #68736e;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
 }
 
 .guess-control button {
@@ -723,6 +736,53 @@
 
 .input-hint {
   color: #7c8782;
+}
+
+.game-details {
+  margin-top: 18px;
+  border-top: 1px solid #dfe3de;
+}
+
+.game-details summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  color: #52605a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.game-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.game-details summary svg {
+  transition: transform 150ms ease;
+}
+
+.game-details[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.game-details__content {
+  padding: 8px 0 4px;
+}
+
+.game-details .pin-progress {
+  margin: 0 0 20px;
+}
+
+.game-details .budget-block {
+  margin-top: 0;
+}
+
+.game-details .map-key {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #dfe3de;
 }
 
 .notice {
@@ -959,14 +1019,29 @@
 
 @media (max-width: 720px) {
   .brand-bar {
-    top: 14px;
-    left: 16px;
+    top: 10px;
+    left: 12px;
     font-size: 11px;
   }
 
   .brand-mark {
     width: 30px;
     height: 30px;
+  }
+
+  .brand-home {
+    width: 44px;
+    height: 44px;
+  }
+
+  .leaflet-control-zoom {
+    display: block;
+  }
+
+  .leaflet-control-zoom a {
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
   }
 
   .start-panel {
@@ -1027,18 +1102,27 @@
     padding-top: 16px;
   }
 
-  .app-shell--game,
   .app-shell--finished {
     display: grid;
     grid-template-rows: 54svh auto;
     overflow: auto;
   }
 
-  .app-shell--game .map-surface,
   .app-shell--finished .map-surface {
     position: relative;
     grid-row: 1;
     min-height: 320px;
+  }
+
+  .app-shell--game {
+    display: block;
+    overflow: hidden;
+  }
+
+  .app-shell--game .map-surface {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
   }
 
   .app-shell--game .brand-bar,
@@ -1047,7 +1131,7 @@
     text-shadow: 0 1px 4px rgb(6 15 11 / 70%);
   }
 
-  .game-panel {
+  .app-shell--finished .game-panel {
     position: relative;
     z-index: 650;
     grid-row: 2;
@@ -1060,12 +1144,48 @@
     box-shadow: 0 -10px 32px rgb(15 32 24 / 9%);
   }
 
+  .app-shell--game .game-panel {
+    position: absolute;
+    z-index: 650;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    padding: 10px 12px 12px;
+    overflow: visible;
+    background: rgb(252 251 247 / 97%);
+    border: 1px solid #dfe3de;
+    border-top: 4px solid #24a875;
+    box-shadow: 0 12px 32px rgb(15 32 24 / 18%);
+  }
+
   .game-heading h1 {
     font-size: 36px;
   }
 
   .app-shell--game .game-heading {
     display: none;
+  }
+
+  .app-shell--game .guess-form label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .app-shell--game .give-up-action {
+    margin-top: 8px;
+  }
+
+  .app-shell--game .game-details {
+    margin-top: 8px;
   }
 
   .app-shell--game .brand-bar > span:last-child {
@@ -1084,7 +1204,13 @@
   }
 
   .guess-control {
-    height: 48px;
+    grid-template-columns: 1fr auto 54px;
+    height: 54px;
+  }
+
+  .guess-control button {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .suggestion-list {
@@ -1477,18 +1603,20 @@
 .training-panel {
   position: absolute;
   z-index: 650;
-  top: 0;
-  left: 0;
+  bottom: 32px;
+  left: 50%;
   display: flex;
-  width: 390px;
-  height: 100%;
+  width: min(440px, calc(100% - 64px));
+  max-height: min(560px, calc(100svh - 64px));
   box-sizing: border-box;
   flex-direction: column;
   overflow-y: auto;
-  padding: 82px 30px 28px;
+  padding: 30px;
   background: rgb(252 251 247 / 97%);
-  border-right: 1px solid rgb(31 52 43 / 14%);
-  box-shadow: 12px 0 42px rgb(15 32 24 / 10%);
+  border: 1px solid #dfe3de;
+  border-top: 4px solid #24a875;
+  box-shadow: 0 18px 48px rgb(15 32 24 / 18%);
+  transform: translateX(-50%);
 }
 
 .direction-switch {
@@ -1632,14 +1760,56 @@
   display: block;
 }
 
+.training-answer-form .guess-control {
+  grid-template-columns: 1fr;
+}
+
+.training-shell--question .training-panel {
+  width: min(340px, calc(100% - 64px));
+  max-height: none;
+  padding: 18px 20px 16px;
+  overflow: visible;
+}
+
+.training-shell--question .direction-switch {
+  display: none;
+}
+
+.training-shell--question .training-question .eyebrow {
+  margin: 0 0 6px;
+}
+
+.training-shell--question .training-question h1 {
+  font-size: 30px;
+}
+
+.training-shell--question .training-answer-form {
+  margin-top: 14px;
+}
+
+.training-shell--question .training-answer-form label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.training-shell--question .question-actions {
+  margin-top: 8px;
+}
+
 .training-suggestions {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 6px);
+  top: auto;
   right: 0;
+  bottom: calc(100% + 6px);
   left: 0;
   display: grid;
-  max-height: 210px;
+  max-height: min(360px, 42svh);
   padding: 5px;
   overflow-y: auto;
   background: #fff;
@@ -2012,6 +2182,10 @@
   display: none;
 }
 
+  .give-up-action {
+    min-height: 44px;
+  }
+
 .explore-card {
   position: absolute;
   z-index: 650;
@@ -2059,6 +2233,11 @@
 }
 
 @media (max-width: 760px) {
+  .brand-home {
+    width: 44px;
+    height: 44px;
+  }
+
   .mode-home {
     overflow: auto;
   }
@@ -2079,22 +2258,63 @@
   }
 
   .mode-option {
-    min-height: 70px;
+    min-height: 76px;
+  }
+
+  .mode-option__copy small {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .mode-account > button {
+    min-height: 44px;
+  }
+
+  .start-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .start-actions .secondary-action,
+  .start-actions .account-actions,
+  .start-actions .account-status {
+    grid-column: 1;
+  }
+
+  .start-actions .account-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .start-actions .secondary-action,
+  .start-actions .account-actions .secondary-action,
+  .start-actions .account-status {
+    min-height: 44px;
   }
 
   .training-shell--setup,
-  .training-shell--question,
-  .training-shell--feedback,
   .training-shell--summary {
     display: grid;
     grid-template-rows: 52svh auto;
     overflow: auto;
   }
 
-  .training-shell .map-surface {
+  .training-shell--setup .map-surface,
+  .training-shell--summary .map-surface {
     position: relative;
     grid-row: 1;
     min-height: 320px;
+  }
+
+  .training-shell--question,
+  .training-shell--feedback {
+    display: block;
+    overflow: hidden;
+  }
+
+  .training-shell--question .map-surface,
+  .training-shell--feedback .map-surface {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
   }
 
   .training-topbar {
@@ -2111,15 +2331,39 @@
     border-radius: 4px;
   }
 
-  .training-panel {
+  .training-shell--setup .training-panel,
+  .training-shell--summary .training-panel {
     position: relative;
     grid-row: 2;
+    left: auto;
     width: 100%;
     min-height: 48svh;
+    max-height: none;
     overflow: visible;
     padding: 20px 18px 24px;
     border-top: 1px solid #dfe3de;
     border-right: 0;
+    transform: none;
+  }
+
+  .training-shell--question .training-panel,
+  .training-shell--feedback .training-panel {
+    position: absolute;
+    z-index: 650;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+    overflow: visible;
+    background: rgb(252 251 247 / 97%);
+    border: 1px solid #dfe3de;
+    border-top: 4px solid #24a875;
+    box-shadow: 0 12px 32px rgb(15 32 24 / 18%);
+    transform: none;
   }
 
   .direction-switch {
@@ -2128,6 +2372,66 @@
 
   .training-panel h1 {
     font-size: 36px;
+  }
+
+  .training-shell--question .direction-switch,
+  .training-shell--feedback .direction-switch {
+    display: none;
+  }
+
+  .training-shell--question .training-question .eyebrow {
+    margin: 0 0 6px;
+  }
+
+  .training-shell--question .training-question h1,
+  .training-shell--feedback .training-feedback h1 {
+    font-size: 30px;
+  }
+
+  .training-shell--question .training-answer-form {
+    margin-top: 14px;
+  }
+
+  .training-shell--question .training-answer-form label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .training-shell--question .training-suggestions {
+    top: auto;
+    bottom: calc(100% + 6px);
+    max-height: 42svh;
+  }
+
+  .training-shell--question .question-actions {
+    margin-top: 8px;
+  }
+
+  .training-shell--question .question-actions button {
+    min-height: 40px;
+  }
+
+  .training-shell--feedback .feedback-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 8px;
+  }
+
+  .training-shell--feedback .training-feedback > p:not(.eyebrow) {
+    margin: 6px 0 12px;
+  }
+
+  .training-shell--feedback .session-line {
+    margin: 12px 0 8px;
+  }
+
+  .training-shell--feedback .feedback-actions {
+    margin-top: 8px;
   }
 
   .scope-picker > div {

@@ -90,7 +90,9 @@ fi
   "$uv_command" run uvicorn main:app --reload --host 0.0.0.0 --port "$backend_port") &
 backend_pid=$!
 
-(cd "$root_dir/frontend" && VITE_API_BASE_URL="$api_base_url" \
+# Proxy browser API calls through Vite. An empty explicit value overrides a
+# possibly stale frontend/.env URL and keeps the browser requests same-origin.
+(cd "$root_dir/frontend" && VITE_API_BASE_URL='' VITE_BACKEND_PORT="$backend_port" \
   npm run dev -- --host 0.0.0.0 --port "$frontend_port" --strictPort) &
 frontend_pid=$!
 
