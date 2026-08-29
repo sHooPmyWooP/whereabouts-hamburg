@@ -1,0 +1,26 @@
+services:
+  workspace:
+    image: mcr.microsoft.com/devcontainers/python:3.12
+    command: sleep infinity
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../..:/workspaces/whereabouts-hamburg:cached
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: whereabouts_hamburg
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d whereabouts_hamburg"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

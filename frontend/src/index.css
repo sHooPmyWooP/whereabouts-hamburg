@@ -1,0 +1,39 @@
+@import '@fontsource-variable/manrope';
+@import '@fontsource-variable/newsreader';
+@import 'leaflet/dist/leaflet.css';
+
+:root {
+  font-family: 'Manrope Variable', sans-serif;
+  color: #18201d;
+  background: #dce4df;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgb(32 166 118 / 32%);
+  outline-offset: 2px;
+}
