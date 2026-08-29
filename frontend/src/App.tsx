@@ -733,8 +733,12 @@ function DailyApp({ onHome }: { onHome: () => void }) {
 
           {screen === 'game' ? (
             <>
+              <div className="daily-game-status" aria-label="Daily Challenge progress">
+                <span><strong>{pinsSolved}/5</strong> Pins found</span>
+                <span><strong>{progress?.budgetRemaining ?? 10}</strong> Guesses left</span>
+              </div>
               <form className="guess-form" onSubmit={submitGuess}>
-                <label htmlFor="district-guess">Stadtteil</label>
+                <label htmlFor="district-guess">Stadtteil name</label>
                 <div className="guess-control">
                   <input
                     ref={guessInputRef}
@@ -742,7 +746,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                     value={guess}
                     onChange={(event) => handleGuessChange(event.target.value)}
                     onKeyDown={handleGuessKeyDown}
-                    placeholder="Start typing a name…"
+                    placeholder="Type the name…"
                     autoComplete="off"
                     role="combobox"
                     aria-autocomplete="list"
@@ -751,12 +755,6 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                     aria-activedescendant={activeSuggestionIndex >= 0 ? `district-suggestion-${suggestions[activeSuggestionIndex]?.id}` : undefined}
                     readOnly={submitting}
                   />
-                  <span className="guess-count" aria-label={`${progress?.budgetRemaining ?? 10} guesses remaining`}>
-                    {progress?.budgetRemaining ?? 10} guesses
-                  </span>
-                  <button type="submit" aria-label="Submit Guess" disabled={!guess.trim() || submitting}>
-                    <ArrowRight size={20} />
-                  </button>
                 </div>
                 {suggestions.length > 0 ? (
                   <div className="suggestion-list" id="district-suggestions" role="listbox">

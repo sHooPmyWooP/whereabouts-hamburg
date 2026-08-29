@@ -560,9 +560,67 @@
   animation: rail-in 420ms ease-out both;
 }
 
-.app-shell--game .brand-bar,
+.app-shell--game .brand-bar {
+  color: #fff;
+  text-shadow: 0 1px 4px rgb(6 15 11 / 70%);
+}
+
 .app-shell--finished .brand-bar {
   color: #171a1b;
+}
+
+.app-shell--game .game-panel {
+  top: auto;
+  bottom: 32px;
+  left: 50%;
+  width: min(340px, calc(100% - 64px));
+  height: auto;
+  max-height: calc(100svh - 96px);
+  padding: 18px 20px 16px;
+  overflow: visible;
+  background: rgb(252 251 247 / 97%);
+  border: 1px solid #dfe3de;
+  border-top: 4px solid #24a875;
+  box-shadow: 0 18px 48px rgb(15 32 24 / 18%);
+  transform: translateX(-50%);
+  animation: daily-panel-in 240ms ease-out both;
+}
+
+.daily-game-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+  color: #68736e;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.daily-game-status strong {
+  color: #18201d;
+  font-size: 12px;
+}
+
+.app-shell--game .guess-form label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.app-shell--game .guess-control {
+  grid-template-columns: 1fr;
+}
+
+.app-shell--game .suggestion-list {
+  top: auto;
+  bottom: calc(100% + 6px);
+  max-height: min(360px, 42svh);
 }
 
 .app-shell--finished .game-panel {
@@ -1017,6 +1075,10 @@
   from { opacity: 0; transform: translateX(-18px); }
 }
 
+@keyframes daily-panel-in {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+}
+
 @media (max-width: 720px) {
   .brand-bar {
     top: 10px;
@@ -1160,6 +1222,7 @@
     border: 1px solid #dfe3de;
     border-top: 4px solid #24a875;
     box-shadow: 0 12px 32px rgb(15 32 24 / 18%);
+    transform: none;
   }
 
   .game-heading h1 {
