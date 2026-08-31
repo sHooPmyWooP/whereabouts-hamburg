@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from api_errors import ApiHTTPException
 from auth_routes import get_optional_account
 from database import get_db
 from game import District, DistrictCatalog
@@ -47,7 +48,8 @@ def require_account(
 ) -> Account:
     """Require a valid signed Account for every Training operation."""
     if account is None:
-        raise HTTPException(
+        raise ApiHTTPException(
+            code="auth_required",
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sign in to use Training",
             headers=NO_STORE_HEADERS,
@@ -148,7 +150,8 @@ def _build_queue(
         session.selected_bezirke,
     )
     if not districts:
-        raise HTTPException(
+        raise ApiHTTPException(
+            code="training_find_requires_name_practice",
             status_code=status.HTTP_409_CONFLICT,
             detail="Practice a Stadtteil in Name It before using Find It",
             headers=NO_STORE_HEADERS,
@@ -223,7 +226,8 @@ def _next_question(
     if not queue:
         queue = _build_queue(database, catalog, session)
     if not queue:
-        raise HTTPException(
+        raise ApiHTTPException(
+            code="training_no_districts",
             status_code=status.HTTP_409_CONFLICT,
             detail="No Stadtteile are available in this scope",
             headers=NO_STORE_HEADERS,

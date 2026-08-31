@@ -8,6 +8,10 @@ A daily geography guessing game for the districts of Hamburg, modeled on whereab
 One of Hamburg's ~104 official *Stadtteile* (quarters, e.g. Eppendorf, St. Pauli, Blankenese), the unit the game asks the player to identify. Shared reference data with a name and a boundary polygon, identical for all players. Explicitly *not* the 7 coarse Bezirke.
 _Avoid_: Area, region, neighborhood, Bezirk, borough
 
+**Bezirk**:
+One of Hamburg's 7 administrative boroughs, used to group Districts but never as an answer to a Pin.
+_Avoid_: District, Stadtteil, area, region
+
 **Pin**:
 A single point dropped on the map inside one District, which the player must name. All Pins of the Daily Challenge are shown on one Hamburg map at once; each is either *unsolved* or *solved*, and solved Pins are recolored.
 _Avoid_: Marker, question, location, round
@@ -29,8 +33,8 @@ A Guess is matched against *every* unsolved Pin, not just the Pin currently in v
 _Avoid_: per-pin answer
 
 **Daily Challenge**:
-The fixed set of Pins for a given calendar day, identical for every player that day (start: 5 Pins). Generated deterministically from the calendar date (date-seeded PRNG): the date picks 5 distinct Districts and a stable random Pin point inside each. Computed on the fly, not curated or pre-stored. "Daily Districts" is the first game type; future variants (transit lines, streets) are planned, hence type-scoped names like `game_daily_districts`.
-_Avoid_: Game, level, quiz
+The fixed set of Pins for a given calendar day, identical for every player that day (start: 5 Pins). Generated deterministically from the calendar date (date-seeded PRNG): the date picks 5 distinct Districts and a stable random Pin point inside each. Computed on the fly, not curated or pre-stored. The canonical product term remains "Daily Challenge" in both English and German; "Daily Districts" is the first game type, with future variants (transit lines, streets) planned, hence type-scoped names like `game_daily_districts`.
+_Avoid_: Game, level, quiz, Tages-Challenge
 
 **Player**:
 Whoever is playing. Either anonymous (no saved identity) or signed in to an Account.
@@ -55,6 +59,7 @@ _Avoid_: Ladder, ranking, scoreboard
 ## Relationships
 
 - A **Daily Challenge** contains an ordered set of **Pins**
+- A **Bezirk** contains multiple **Districts**, and each **District** belongs to exactly one **Bezirk**
 - A **Pin** sits inside exactly one **District**
 - A **Guess** is evaluated against all unsolved **Pins** in the **Daily Challenge** (Global Guess)
 - An **Account** owns one **History**; a **History** has one result per **Daily Challenge** played

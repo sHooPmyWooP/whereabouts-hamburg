@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, CircleUserRound, Compass, Copy, Dices, Flag, Home, LocateFixed, LogIn, RefreshCw, Share2, UserPlus, X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { useTranslation } from 'react-i18next'
+import { AdminPage } from './AdminPage'
+import { AnalyticsPrivacy } from './AnalyticsPrivacy'
+import { AppMenu } from './AppMenu'
 import { ExploreApp } from './ExploreApp'
 import { LoginDialog } from './LoginDialog'
 import type { MissedDistrict, Pin, Reveal } from './MapView'
@@ -11,7 +15,9 @@ import { ModeHome } from './ModeHome'
 import type { Account } from './RegisterDialog'
 import { RegisterDialog } from './RegisterDialog'
 import { TrainingApp, TrainingProgressPage } from './TrainingApp'
-import { ApiError, apiFetch } from './api'
+import { ApiError, apiErrorMessage, apiFetch } from './api'
+import i18n, { activeLanguage } from './i18n'
+import { firstTouchContext, track } from './analytics'
 import './App.css'
 
 type District = {
@@ -195,6 +201,7 @@ function mergeReveals(existing: Reveal[], incoming: Reveal[]) {
 
 /** Preserve the existing Daily Challenge behavior at its dedicated route. */
 function DailyApp({ onHome }: { onHome: () => void }) {
+  const { t } = useTranslation()
   const [screen, setScreen] = useState<'start' | 'game' | 'finished'>('start')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [districts, setDistricts] = useState<District[]>([])
@@ -210,13 +217,14 @@ function DailyApp({ onHome }: { onHome: () => void }) {
   const [accountError, setAccountError] = useState<string | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(false)
-  const [shareLabel, setShareLabel] = useState('Copy invite link')
+  const [shareLabel, setShareLabel] = useState<'copy' | 'copied' | 'failed'>('copy')
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const [customPhrase, setCustomPhrase] = useState(requestedSeed ?? '')
   const [creatorError, setCreatorError] = useState<string | null>(null)
   const guessInputRef = useRef<HTMLInputElement>(null)
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
+
 
   useEffect(() => {
     let cancelled = false
@@ -245,7 +253,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : 'Could not load today’s map.')
+          setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'daily.loadError'))
         }
       })
       .finally(() => {
@@ -279,7 +287,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
           !cancelled &&
           !(reason instanceof ApiError && reason.status === 401)
         ) {
-          setAccountError('Account status could not be loaded.')
+          setAccountError(i18n.t('common.accountStatusError'))
         }
       })
     return () => {
@@ -314,12 +322,13 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       setChallenge(daily)
       setProgress(progressFromChallenge(daily))
     } catch {
-      setAccountError('Signed in, but Daily Challenge progress could not be loaded.')
+      setAccountError(t('daily.accountProgressError'))
     }
   }
 
   function begin() {
     if (!progress) return
+    track(challenge?.mode === 'seeded' ? 'seeded_started' : 'daily_started', challenge?.mode === 'seeded' ? { seed: challenge.id } : {})
     setScreen(progress.status === 'finished' ? 'finished' : 'game')
     requestAnimationFrame(() => guessInputRef.current?.focus())
   }
@@ -340,11 +349,11 @@ function DailyApp({ onHome }: { onHome: () => void }) {
     if (!challenge || challenge.mode !== 'seeded') return
     try {
       await navigator.clipboard.writeText(inviteUrl(challenge.id))
-      setShareLabel('Link copied')
-      setShareStatus('Invite link copied to your clipboard.')
+      setShareLabel('copied')
+      setShareStatus(t('daily.inviteCopied'))
     } catch {
-      setShareLabel('Could not copy')
-      setShareStatus('Your browser blocked clipboard access.')
+      setShareLabel('failed')
+      setShareStatus(t('daily.clipboardBlocked'))
     }
   }
 
@@ -357,13 +366,13 @@ function DailyApp({ onHome }: { onHome: () => void }) {
     try {
       await navigator.share({
         title: 'Hamburg Whereabouts',
-        text: 'Can you solve my Hamburg map?',
+        text: t('daily.shareText'),
         url: inviteUrl(challenge.id),
       })
-      setShareStatus('Invite shared.')
+      setShareStatus(t('daily.inviteShared'))
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === 'AbortError') return
-      setShareStatus('This invite could not be shared.')
+      setShareStatus(t('daily.shareFailed'))
     }
   }
 
@@ -371,7 +380,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
     event.preventDefault()
     const seed = phraseToSeed(customPhrase)
     if (seed.length < 3) {
-      setCreatorError('Use at least three letters or numbers.')
+      setCreatorError(t('daily.phraseValidation'))
       return
     }
     window.location.assign(`/?seed=${seed}`)
@@ -390,7 +399,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       setGuess('')
       setActiveSuggestionIndex(-1)
       setConfirmingGiveUp(false)
-      setFeedback({ kind: 'error', message: `${district.name} has already been guessed.` })
+      setFeedback({ kind: 'error', message: t('daily.alreadyGuessed', { district: district.name }) })
       requestAnimationFrame(() => guessInputRef.current?.focus())
       return
     }
@@ -455,14 +464,22 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       setGuess('')
       setFeedback(
         result.correct
-          ? { kind: 'correct', message: `${district.name} found.` }
-          : { kind: 'miss', message: `${district.name} is ${result.distance_km?.toFixed(1)} km away.` },
+          ? { kind: 'correct', message: t('daily.found', { district: district.name }) }
+          : { kind: 'miss', message: t('daily.distance', { district: district.name, distance: new Intl.NumberFormat(activeLanguage(), { style: 'unit', unit: 'kilometer', maximumFractionDigits: 1 }).format(result.distance_km ?? 0) }) },
       )
-      if (result.status === 'finished') setScreen('finished')
+      if (result.status === 'finished') {
+        track(challenge.mode === 'seeded' ? 'seeded_completed' : 'daily_completed', {
+          reason: next.finishReason ?? 'finished',
+          pins_solved: nextSolved.length,
+          guesses_spent: challenge.initial_budget - result.budget_remaining,
+          ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
+        })
+        setScreen('finished')
+      }
     } catch (reason) {
       setFeedback({
         kind: 'error',
-        message: reason instanceof Error ? reason.message : 'Guess could not be checked.',
+        message: apiErrorMessage(reason, t, 'daily.guessError'),
       })
     } finally {
       setSubmitting(false)
@@ -510,11 +527,17 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       }
       localStorage.setItem(storageKey(challenge), JSON.stringify(next))
       setProgress(next)
+      track(challenge.mode === 'seeded' ? 'seeded_completed' : 'daily_completed', {
+        reason: 'gave_up',
+        pins_solved: progress.solvedPinIndices.length,
+        guesses_spent: challenge.initial_budget - result.budget_remaining,
+        ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
+      })
       setScreen('finished')
     } catch (reason) {
       setFeedback({
         kind: 'error',
-        message: reason instanceof Error ? reason.message : 'Could not end this game.',
+        message: apiErrorMessage(reason, t, 'daily.giveUpError'),
       })
     } finally {
       setSubmitting(false)
@@ -561,7 +584,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       chooseDistrict(selected)
       return
     }
-    setFeedback({ kind: 'error', message: 'Choose a Stadtteil from the suggestions.' })
+    setFeedback({ kind: 'error', message: t('common.chooseSuggestions') })
   }
 
   function submitGuess(event: FormEvent<HTMLFormElement>) {
@@ -573,16 +596,16 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       chooseDistrict(district)
       return
     }
-    setFeedback({ kind: 'error', message: 'Choose a Stadtteil from the list.' })
+    setFeedback({ kind: 'error', message: t('common.chooseList') })
   }
 
   const formattedDate = challenge?.date
-    ? new Intl.DateTimeFormat('en-GB', {
+    ? new Intl.DateTimeFormat(activeLanguage(), {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
       }).format(new Date(`${challenge.date}T12:00:00`))
-    : 'Today'
+    : t('common.today')
   const isSeeded = challenge?.mode === 'seeded'
   const currentInviteUrl = isSeeded && challenge ? inviteUrl(challenge.id) : ''
   const normalizedCustomSeed = phraseToSeed(customPhrase)
@@ -610,7 +633,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       />
 
       <header className="brand-bar">
-        <button className="brand-home" type="button" onClick={onHome} aria-label="Return to mode selection" title="Home">
+        <button className="brand-home" type="button" onClick={onHome} aria-label={t('common.returnModes')} title={t('common.home')}>
           <Home size={17} aria-hidden="true" />
         </button>
         <span className="brand-mark"><Compass size={18} strokeWidth={2.4} /></span>
@@ -620,22 +643,22 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       {screen === 'start' ? (
         <section className={isSeeded ? 'start-panel start-panel--seeded' : 'start-panel'} aria-labelledby="start-title">
           <p className="eyebrow">
-            {isSeeded ? `Shared map · ${challenge.id}` : `Daily districts · ${formattedDate}`}
+            {isSeeded ? t('daily.sharedMap', { seed: challenge.id }) : t('daily.dailyDistricts', { date: formattedDate })}
           </p>
           <h1 id="start-title">
-            {isSeeded ? 'Your Hamburg round is ready.' : 'How well do you know Hamburg?'}
+            {t(isSeeded ? 'daily.seededTitle' : 'daily.title')}
           </h1>
           <p className="start-copy">
             {isSeeded
-              ? 'These five Pins are your preview. Share the round, then see who knows Hamburg best.'
-              : 'Five Pins. Ten Guesses. Name the Stadtteile and build your mental map of the city.'}
+              ? t('daily.seededIntro')
+              : t('daily.intro')}
           </p>
           {error ? <p className="notice notice--error">{error}</p> : null}
           {accountError ? <p className="notice notice--error">{accountError}</p> : null}
           {isSeeded ? (
             <>
               <form className="seed-form" onSubmit={previewCustomPhrase}>
-                <label htmlFor="custom-seed">Custom phrase</label>
+                <label htmlFor="custom-seed">{t('daily.customPhrase')}</label>
                 <div className="seed-control">
                   <input
                     id="custom-seed"
@@ -645,30 +668,30 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                       setCustomPhrase(event.target.value)
                       setCreatorError(null)
                     }}
-                    placeholder="Friday at the harbour"
+                    placeholder={t('daily.phrasePlaceholder')}
                   />
                   <button type="submit" disabled={normalizedCustomSeed.length < 3}>
                     <RefreshCw size={16} />
-                    <span>Preview</span>
+                    <span>{t('daily.preview')}</span>
                   </button>
                 </div>
                 <p className={creatorError ? 'seed-help seed-help--error' : 'seed-help'}>
-                  {creatorError ?? `Seed: ${normalizedCustomSeed || 'type a phrase'}`}
+                  {creatorError ?? t('daily.seed', { seed: normalizedCustomSeed || t('daily.typePhrase') })}
                 </p>
               </form>
               <div className="share-panel">
-                <div className="qr-code" role="img" aria-label="QR code for this challenge invite">
+                <div className="qr-code" role="img" aria-label={t('daily.qrLabel')}>
                   <QRCodeSVG value={currentInviteUrl} size={88} bgColor="#ffffff" fgColor="#17201c" level="M" />
                 </div>
                 <div className="share-panel__actions">
-                  <strong>Invite your players</strong>
+                  <strong>{t('daily.invitePlayers')}</strong>
                   <button className="secondary-action" type="button" onClick={() => void copyInviteLink()}>
                     <Copy size={16} />
-                    <span>{shareLabel}</span>
+                    <span>{t(shareLabel === 'copy' ? 'daily.copyInvite' : shareLabel === 'copied' ? 'daily.linkCopied' : 'daily.copyFailed')}</span>
                   </button>
                   <button className="secondary-action" type="button" onClick={() => void shareInviteLink()}>
                     <Share2 size={16} />
-                    <span>Share link</span>
+                    <span>{t('daily.shareLink')}</span>
                   </button>
                 </div>
               </div>
@@ -679,40 +702,40 @@ function DailyApp({ onHome }: { onHome: () => void }) {
             <button className="primary-action" type="button" onClick={begin} disabled={loading || !!error}>
               <span>
                 {loading
-                  ? 'Loading map…'
+                  ? t('daily.loadingMap')
                   : progress?.status === 'finished'
-                    ? 'View result'
-                    : isSeeded ? 'Play this map' : 'Play today'}
+                    ? t('daily.viewResult')
+                    : t(isSeeded ? 'daily.playMap' : 'daily.playToday')}
               </span>
               <ArrowRight size={20} />
             </button>
             <button className="secondary-action" type="button" onClick={createRandomChallenge}>
               <Dices size={18} />
-              <span>{isSeeded ? 'Randomise' : 'Create your own'}</span>
+              <span>{t(isSeeded ? 'daily.randomise' : 'daily.createOwn')}</span>
             </button>
             {!isSeeded && (account ? (
-              <div className="account-status" aria-label={`Signed in as ${account.username}`}>
+              <div className="account-status" aria-label={t('common.signedInAs', { username: account.username })}>
                 <CircleUserRound size={19} aria-hidden="true" />
-                <span>Signed in as <strong>{account.username}</strong></span>
+                <span>{t('common.signedInAs', { username: account.username })}</span>
               </div>
             ) : (
               <div className="account-actions">
                 <button ref={loginButtonRef} className="secondary-action" type="button" onClick={openLogin}>
                   <LogIn size={18} aria-hidden="true" />
-                  <span>Log in</span>
+                  <span>{t('common.login')}</span>
                 </button>
                 <button ref={registrationButtonRef} className="secondary-action" type="button" onClick={openRegistration}>
                   <UserPlus size={18} aria-hidden="true" />
-                  <span>Create account</span>
+                  <span>{t('common.createAccount')}</span>
                 </button>
               </div>
             ))}
           </div>
-          {isSeeded ? <a className="daily-link" href="/">Return to Daily Challenge</a> : null}
+          {isSeeded ? <a className="daily-link" href="/">{t('daily.returnDaily')}</a> : null}
           {!isSeeded ? (
-            <div className="start-meta" aria-label="Challenge details">
-              <span><strong>5</strong> Pins</span>
-              <span><strong>10</strong> Guesses</span>
+            <div className="start-meta" aria-label={t('daily.details')}>
+              <span><strong>5</strong> {t('daily.pins')}</span>
+              <span><strong>10</strong> {t('daily.guesses')}</span>
               <span><strong>1</strong> Hamburg</span>
             </div>
           ) : null}
@@ -721,24 +744,24 @@ function DailyApp({ onHome }: { onHome: () => void }) {
         <aside className="game-panel" aria-live="polite">
           {screen === 'finished' ? (
             <div className="game-heading">
-              <p className="eyebrow">{isSeeded ? 'Shared map complete' : 'Daily complete'}</p>
-              <h1>{isSeeded ? 'Your Hamburg' : 'Today’s Hamburg'}</h1>
+              <p className="eyebrow">{t(isSeeded ? 'daily.sharedComplete' : 'daily.complete')}</p>
+              <h1>{t(isSeeded ? 'daily.yourHamburg' : 'daily.todaysHamburg')}</h1>
               <p>
                 {progress?.finishReason === 'gave_up'
-                  ? `${pinsSolved} of 5 found before giving up.`
-                  : `${pinsSolved} of 5 found in ${guessesSpent} ${guessesSpent === 1 ? 'Guess' : 'Guesses'}.`}
+                  ? t('daily.foundBeforeGivingUp', { solved: pinsSolved, total: 5 })
+                  : t('daily.foundInGuesses', { solved: pinsSolved, total: 5, count: guessesSpent })}
               </p>
             </div>
           ) : null}
 
           {screen === 'game' ? (
             <>
-              <div className="daily-game-status" aria-label="Daily Challenge progress">
-                <span><strong>{pinsSolved}/5</strong> Pins found</span>
-                <span><strong>{progress?.budgetRemaining ?? 10}</strong> Guesses left</span>
+              <div className="daily-game-status" aria-label={t('daily.progress')}>
+                <span>{t('daily.pinsFound', { solved: pinsSolved, total: 5 })}</span>
+                <span>{t('daily.guessesLeft', { count: progress?.budgetRemaining ?? 10 })}</span>
               </div>
               <form className="guess-form" onSubmit={submitGuess}>
-                <label htmlFor="district-guess">Stadtteil name</label>
+                <label htmlFor="district-guess">{t('common.districtName')}</label>
                 <div className="guess-control">
                   <input
                     ref={guessInputRef}
@@ -746,7 +769,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                     value={guess}
                     onChange={(event) => handleGuessChange(event.target.value)}
                     onKeyDown={handleGuessKeyDown}
-                    placeholder="Type the name…"
+                    placeholder={t('common.typeName')}
                     autoComplete="off"
                     role="combobox"
                     aria-autocomplete="list"
@@ -787,17 +810,17 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                 disabled={submitting}
               >
                 <Flag size={15} />
-                <span>{confirmingGiveUp ? 'Confirm give up' : 'Give up'}</span>
+                <span>{t(confirmingGiveUp ? 'daily.confirmGiveUp' : 'daily.giveUp')}</span>
               </button>
 
               {progress && progress.guessHistory.length > 0 ? (
                 <details className="game-details">
                   <summary>
-                    <span>Past guesses ({progress.guessHistory.length})</span>
+                    <span>{t('daily.pastGuessesCount', { count: progress.guessHistory.length })}</span>
                     <ChevronDown size={18} aria-hidden="true" />
                   </summary>
                   <div className="game-details__content">
-                  <div className="pin-progress" aria-label={`${pinsSolved} of 5 Pins solved`}>
+                  <div className="pin-progress" aria-label={t('daily.pinsSolvedLabel', { solved: pinsSolved, total: 5 })}>
                     {challenge?.pins.map((pin) => (
                       <span
                         key={pin.index}
@@ -808,7 +831,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                     ))}
                   </div>
                   <section className="guess-history" aria-labelledby="guess-history-title">
-                    <h2 id="guess-history-title">Past Guesses</h2>
+                    <h2 id="guess-history-title">{t('daily.pastGuesses')}</h2>
                     <ol>
                       {[...progress.guessHistory].reverse().map((entry, reverseIndex) => (
                         <li
@@ -823,8 +846,8 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                           <strong>{entry.districtName}</strong>
                           <small>
                             {entry.correct
-                              ? `Pin ${(entry.solvedPinIndex ?? 0) + 1} found`
-                              : `${entry.distanceKm?.toFixed(1)} km`}
+                              ? t('daily.pinFound', { pin: (entry.solvedPinIndex ?? 0) + 1 })
+                              : new Intl.NumberFormat(activeLanguage(), { style: 'unit', unit: 'kilometer', maximumFractionDigits: 1 }).format(entry.distanceKm ?? 0)}
                           </small>
                         </li>
                       ))}
@@ -837,28 +860,28 @@ function DailyApp({ onHome }: { onHome: () => void }) {
           ) : (
             <div className="result-block">
               <div>
-                <span>Pins solved</span>
+                <span>{t('daily.pinsSolved')}</span>
                 <strong>{pinsSolved}<small>/5</small></strong>
               </div>
               <div>
-                <span>Guesses spent</span>
+                <span>{t('daily.guessesSpent')}</span>
                 <strong>{guessesSpent}<small>/10</small></strong>
               </div>
               <p>
                 {progress?.finishReason === 'gave_up'
-                  ? `${challenge?.initial_budget && progress ? challenge.initial_budget - progress.budgetRemaining : 0} Guesses used. The remaining answers are revealed.`
+                  ? t('daily.usedGuesses', { count: challenge?.initial_budget && progress ? challenge.initial_budget - progress.budgetRemaining : 0 })
                   : isSeeded
-                  ? 'All boundaries are now revealed. Anyone with this link can play the same map.'
-                  : 'All boundaries are now revealed. A new map arrives at midnight in Hamburg.'}
+                  ? t('daily.seededRevealed')
+                  : t('daily.dailyRevealed')}
               </p>
               <div className="result-actions">
                 <button className="primary-action" type="button" onClick={createRandomChallenge}>
-                  <span>New game</span>
+                  <span>{t('daily.newGame')}</span>
                   <Dices size={18} />
                 </button>
                 <button className="panel-secondary-action" type="button" onClick={returnToStart}>
                   <ArrowLeft size={16} />
-                  <span>Back to start</span>
+                  <span>{t('daily.backStart')}</span>
                 </button>
               </div>
             </div>
@@ -866,7 +889,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
 
           {screen === 'finished' && progress && progress.guessHistory.length > 0 ? (
             <section className="guess-history" aria-labelledby="guess-history-title">
-              <h2 id="guess-history-title">Past Guesses</h2>
+              <h2 id="guess-history-title">{t('daily.pastGuesses')}</h2>
               <ol>
                 {[...progress.guessHistory].reverse().map((entry, reverseIndex) => (
                   <li
@@ -881,8 +904,8 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                     <strong>{entry.districtName}</strong>
                     <small>
                       {entry.correct
-                        ? `Pin ${(entry.solvedPinIndex ?? 0) + 1} found`
-                        : `${entry.distanceKm?.toFixed(1)} km`}
+                        ? t('daily.pinFound', { pin: (entry.solvedPinIndex ?? 0) + 1 })
+                        : new Intl.NumberFormat(activeLanguage(), { style: 'unit', unit: 'kilometer', maximumFractionDigits: 1 }).format(entry.distanceKm ?? 0)}
                     </small>
                   </li>
                 ))}
@@ -893,7 +916,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
           {screen === 'finished' ? (
             <footer className="map-key">
               <LocateFixed size={16} />
-              <span>Green solved · amber revealed · orange/red missed</span>
+              <span>{t('daily.mapKey')}</span>
             </footer>
           ) : null}
         </aside>
@@ -922,12 +945,22 @@ function currentPath() {
 /** Render lightweight browser-history routing without adding a routing dependency. */
 function App() {
   const [path, setPath] = useState(currentPath)
+  const [analyticsSettingsOpen, setAnalyticsSettingsOpen] = useState(false)
 
   useEffect(() => {
+    track('app_opened', firstTouchContext())
     const handlePopState = () => setPath(currentPath())
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    const mode = path === '/' ? 'home' : path.split('/')[1]
+    track('mode_opened', {
+      mode,
+      ...(requestedSeed && mode === 'daily' ? { seed: requestedSeed } : {}),
+    })
+  }, [path])
 
   /** Navigate to one application mode and preserve browser back behavior. */
   function navigate(nextPath: string) {
@@ -935,15 +968,31 @@ function App() {
     setPath(nextPath)
   }
 
-  if (path === '/daily') return <DailyApp onHome={() => navigate('/')} />
-  if (path === '/explore') return <ExploreApp onHome={() => navigate('/')} />
-  if (path === '/training') {
-    return <TrainingApp onHome={() => navigate('/')} onNavigate={navigate} />
+  let content
+  if (path === '/daily') content = <DailyApp onHome={() => navigate('/')} />
+  else if (path === '/explore') content = <ExploreApp onHome={() => navigate('/')} />
+  else if (path === '/training') {
+    content = <TrainingApp onHome={() => navigate('/')} onNavigate={navigate} />
+  } else if (path === '/training/progress') {
+    content = <TrainingProgressPage onHome={() => navigate('/')} onNavigate={navigate} />
+  } else if (path === '/admin') {
+    content = <AdminPage onHome={() => navigate('/')} />
+  } else {
+    content = <ModeHome onNavigate={navigate} />
   }
-  if (path === '/training/progress') {
-    return <TrainingProgressPage onHome={() => navigate('/')} onNavigate={navigate} />
-  }
-  return <ModeHome onNavigate={navigate} />
+  return (
+    <>
+      {content}
+      <AppMenu
+        onAnalyticsSettings={() => setAnalyticsSettingsOpen(true)}
+        onNavigate={navigate}
+      />
+      <AnalyticsPrivacy
+        settingsOpen={analyticsSettingsOpen}
+        onSettingsClose={() => setAnalyticsSettingsOpen(false)}
+      />
+    </>
+  )
 }
 
 export default App

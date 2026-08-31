@@ -8,6 +8,7 @@ A map game for learning Hamburg's Stadtteile. Play a deterministic daily challen
 - Shareable rounds generated from a custom seed
 - Interactive Stadtteil explorer and training in both name-to-map and map-to-name directions
 - Optional accounts with Argon2 password hashing and persistent progress
+- Consent-based, first-party usage analytics with a protected admin dashboard
 - Responsive React and Leaflet interface
 - FastAPI backend with PostgreSQL persistence and Alembic migrations
 - Production Docker image serving the built frontend and API together
@@ -70,11 +71,23 @@ The production stack runs the application and PostgreSQL on one Docker host. Pos
    docker compose ps
    ```
 
-The application is available at `http://<server>:8000` by default. Set `APP_PORT` in `.env` to use another host port.
+The application is available at `http://<server>:8000` by default. Set `APP_PORT` in `.env` to use another host port. Production also requires `PRIVACY_CONTACT_EMAIL`, which is displayed in Analytics Settings.
 
 For an internet-facing deployment, put an HTTPS reverse proxy such as Caddy, Traefik, or Nginx in front of the application. Keep `SESSION_COOKIE_SECURE=true`. If the proxy runs on the same host, set `APP_BIND_ADDRESS=127.0.0.1` so the application port is not exposed directly on the LAN. For direct HTTP-only LAN access, set `SESSION_COOKIE_SECURE=false`.
 
 ### Operations
+
+Promote an existing Account before opening `/admin`:
+
+```bash
+# Local development
+make promote-admin-dev USERNAME=<username>
+
+# Production Compose stack
+make promote-admin-prd USERNAME=<username>
+```
+
+Admin access is server-enforced. `ANALYTICS_EXCLUDED_ACCOUNT_IDS` optionally excludes comma-separated Account IDs from dashboard metrics. Raw consented events are aggregated and removed after 13 months by the application's daily maintenance task. The same maintenance can be run manually with `uv run python analytics_maintenance.py`.
 
 ```bash
 # Follow application and database logs

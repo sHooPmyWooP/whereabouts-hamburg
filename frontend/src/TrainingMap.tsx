@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { GeoJsonObject } from 'geojson'
 import L from 'leaflet'
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { useTranslation } from 'react-i18next'
 
 export type TrainingDistrict = {
   id: number
@@ -11,12 +12,21 @@ export type TrainingDistrict = {
   boundary: GeoJsonObject
 }
 
+export type TrainingMasteryCategory =
+  | 'not_seen'
+  | 'needs_practice'
+  | 'learning'
+  | 'familiar'
+  | 'known'
+  | 'shelved'
+
 type TrainingMapProps = {
   districts: TrainingDistrict[]
   direction: 'name' | 'find'
   targetDistrictId: number | null
   selectedDistrictId: number | null
   highlightedBezirke: string[]
+  masteryByDistrict: Partial<Record<number, TrainingMasteryCategory>>
   answered: boolean
   correct: boolean | null
   onSelect: (districtId: number) => void
@@ -37,6 +47,15 @@ const BEZIRK_COLORS: Record<string, { border: string; fill: string }> = {
   Wandsbek: { border: '#9a6500', fill: '#d99b24' },
 }
 
+const MASTERY_FILL_OPACITY: Record<TrainingMasteryCategory, number> = {
+  shelved: 0.12,
+  not_seen: 0.2,
+  needs_practice: 0.35,
+  learning: 0.55,
+  familiar: 0.75,
+  known: 1,
+}
+
 /** Keep Name It contextual and Find It city-wide until feedback is shown. */
 function TrainingViewport({
   districts,
@@ -44,7 +63,7 @@ function TrainingViewport({
   targetDistrictId,
   selectedDistrictId,
   answered,
-}: Omit<TrainingMapProps, 'correct' | 'onSelect'>) {
+}: Omit<TrainingMapProps, 'correct' | 'masteryByDistrict' | 'onSelect'>) {
   const map = useMap()
 
   useEffect(() => {
@@ -102,6 +121,7 @@ function TrainingBoundary({
   selected: boolean
   onSelect: (districtId: number) => void
 }) {
+  const { t } = useTranslation()
   const layerRef = useRef<L.GeoJSON | null>(null)
 
   useEffect(() => {
@@ -116,7 +136,10 @@ function TrainingBoundary({
       element.setAttribute(
         'aria-label',
         selectable
-          ? `Selectable Hamburg map area ${district.id}${selected ? ', selected' : ''}`
+          ? t('training.selectableArea', {
+              id: district.id,
+              selected: selected ? t('training.selectedSuffix') : '',
+            })
           : `${district.name}, ${district.bezirk}`,
       )
       const handleKeyDown = (event: Event) => {
@@ -132,7 +155,7 @@ function TrainingBoundary({
       cleanups.push(() => element.removeEventListener('keydown', handleKeyDown))
     })
     return () => cleanups.forEach((cleanup) => cleanup())
-  }, [district, onSelect, selectable, selected])
+  }, [district, onSelect, selectable, selected, t])
 
   return (
     <GeoJSON
@@ -155,10 +178,12 @@ export function TrainingMap({
   targetDistrictId,
   selectedDistrictId,
   highlightedBezirke,
+  masteryByDistrict,
   answered,
   correct,
   onSelect,
 }: TrainingMapProps) {
+  const { t } = useTranslation()
   function districtStyle(district: TrainingDistrict): L.PathOptions {
     const isTarget = district.id === targetDistrictId
     const isSelected = district.id === selectedDistrictId
@@ -206,8 +231,8 @@ export function TrainingMap({
       return {
         color: colors.border,
         fillColor: colors.fill,
-        fillOpacity: 0.4,
-        opacity: 0.95,
+        fillOpacity: MASTERY_FILL_OPACITY[masteryByDistrict[district.id] ?? 'not_seen'],
+        opacity: 1,
         weight: 1.75,
       }
     }
@@ -221,7 +246,7 @@ export function TrainingMap({
   }
 
   return (
-    <div className="map-surface training-map" aria-label="Interactive map of Hamburg Stadtteile">
+    <div className="map-surface training-map" aria-label={t('common.interactiveDistrictMap')}>
       <MapContainer
         center={[53.55, 10]}
         zoom={10}

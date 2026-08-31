@@ -18,15 +18,17 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import { ApiError, apiFetch } from './api'
+import { Trans, useTranslation } from 'react-i18next'
+import { ApiError, apiErrorMessage, apiFetch } from './api'
 import { LoginDialog } from './LoginDialog'
+import i18n, { activeLanguage, formatPercent } from './i18n'
 import { RegisterDialog } from './RegisterDialog'
 import { TrainingMap } from './TrainingMap'
-import type { TrainingDistrict } from './TrainingMap'
+import type { TrainingDistrict, TrainingMasteryCategory } from './TrainingMap'
 
 type Direction = 'name' | 'find'
 type TrainingView = 'setup' | 'question' | 'feedback' | 'summary'
-type MasteryCategory = 'not_seen' | 'needs_practice' | 'learning' | 'familiar' | 'known' | 'shelved'
+type MasteryCategory = TrainingMasteryCategory
 
 type DirectionProgress = {
   attempts: number
@@ -107,11 +109,12 @@ type TrainingAppProps = {
 
 /** Calculate an accuracy label without duplicating rendering conditions. */
 function accuracyLabel(correct: number, attempts: number) {
-  return attempts === 0 ? '0%' : `${Math.round((correct / attempts) * 100)}%`
+  return new Intl.NumberFormat(activeLanguage(), { style: 'percent', maximumFractionDigits: 0 }).format(attempts === 0 ? 0 : correct / attempts)
 }
 
 /** Render the authenticated, endless Training workflow. */
 export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
+  const { t } = useTranslation()
   const [bootstrap, setBootstrap] = useState<TrainingBootstrap | null>(null)
   const [direction, setDirection] = useState<Direction>('name')
   const [selectedBezirke, setSelectedBezirke] = useState<string[]>([])
@@ -134,6 +137,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
 
+
   /** Reload geometry and server progress after authentication or reset. */
   async function loadTraining() {
     setLoading(true)
@@ -147,7 +151,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       if (reason instanceof ApiError && reason.status === 401) {
         setAuthenticationRequired(true)
       } else {
-        setError(reason instanceof Error ? reason.message : 'Training could not be loaded.')
+        setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.loadError'))
       }
     } finally {
       setLoading(false)
@@ -168,7 +172,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
         if (reason instanceof ApiError && reason.status === 401) {
           setAuthenticationRequired(true)
         } else {
-          setError(reason instanceof Error ? reason.message : 'Training could not be loaded.')
+          setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.loadError'))
         }
       })
       .finally(() => {
@@ -200,7 +204,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       setFeedback(null)
       setAuthenticationRequired(true)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not sign out.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'common.logoutError'))
     } finally {
       setSigningOut(false)
     }
@@ -235,7 +239,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       setSelectedDistrictId(null)
       setView('question')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Training could not start.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.startError'))
     } finally {
       setSubmitting(false)
     }
@@ -263,7 +267,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       setFeedback(result)
       setView('feedback')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Answer could not be checked.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.answerError'))
     } finally {
       setSubmitting(false)
     }
@@ -319,7 +323,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       chooseDistrict(district)
       return
     }
-    setError('Choose a Stadtteil from the suggestions.')
+    setError(t('training.chooseSuggestions'))
   }
 
   /** Grade only a selected or exactly matched Name It answer. */
@@ -330,7 +334,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       chooseDistrict(district)
       return
     }
-    setError('Choose a Stadtteil from the list.')
+    setError(t('training.chooseList'))
   }
 
   /** Acknowledge feedback and request the next queued question. */
@@ -350,7 +354,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       setSelectedDistrictId(null)
       setView('question')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The next question could not be loaded.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.nextError'))
     } finally {
       setSubmitting(false)
     }
@@ -359,7 +363,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   /** Stop the active session and display its server-calculated summary. */
   async function stopSession(confirmStop = true) {
     if (!question || submitting) return
-    if (confirmStop && view === 'question' && !window.confirm('Stop this Training session? The unanswered question will not be graded.')) return
+    if (confirmStop && view === 'question' && !window.confirm(t('training.stopConfirm'))) return
     setSubmitting(true)
     try {
       const result = await apiFetch<SessionSummary>(
@@ -371,7 +375,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       setFeedback(null)
       setView('summary')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Training could not be stopped.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.stopError'))
     } finally {
       setSubmitting(false)
     }
@@ -380,7 +384,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   /** Return Home without accidentally grading the active question. */
   async function goHome() {
     if (question && view === 'question') {
-      if (!window.confirm('Return Home? The unanswered question will not be graded.')) return
+      if (!window.confirm(t('training.homeConfirm'))) return
       await stopSession(false)
     } else if (question) {
       await stopSession(false)
@@ -433,7 +437,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
         }
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Progress could not be updated.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.progressUpdateError'))
     } finally {
       setSubmitting(false)
     }
@@ -457,11 +461,19 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
     : []
   const sessionAttempts = feedback?.session.attempts ?? question?.attempt_count ?? 0
   const sessionCorrect = feedback?.session.correct ?? question?.correct_count ?? 0
+  const masteryByDistrict: Partial<Record<number, MasteryCategory>> = view === 'setup'
+    ? Object.fromEntries(
+        (bootstrap?.progress.items ?? []).map((item) => [
+          item.district_id,
+          direction === 'name' ? item.name_category : item.find_category,
+        ]),
+      )
+    : {}
 
   if (loading) {
     return (
       <main className="training-shell training-shell--loading">
-        <div className="training-loading" role="status">Loading Training…</div>
+        <div className="training-loading" role="status">{t('training.loading')}</div>
       </main>
     )
   }
@@ -471,17 +483,17 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       <main className="training-shell training-shell--locked">
         <section className="training-locked" aria-labelledby="training-locked-title">
           <span className="training-locked__icon"><LockKeyhole aria-hidden="true" /></span>
-          <p className="eyebrow">Account training</p>
-          <h1 id="training-locked-title">Sign in to train</h1>
-          <p>Your review schedule and mastery stay attached to your account.</p>
+          <p className="eyebrow">{t('training.accountTraining')}</p>
+          <h1 id="training-locked-title">{t('training.signInTitle')}</h1>
+          <p>{t('training.signInHelp')}</p>
           <div className="training-locked__actions">
             <button ref={loginButtonRef} className="primary-action" type="button" onClick={() => setLoginOpen(true)}>
-              <span>Log in</span><LogIn size={19} aria-hidden="true" />
+              <span>{t('common.login')}</span><LogIn size={19} aria-hidden="true" />
             </button>
             <button ref={registrationButtonRef} className="secondary-action secondary-action--light" type="button" onClick={() => setRegistrationOpen(true)}>
-              <UserPlus size={18} aria-hidden="true" /><span>Create account</span>
+              <UserPlus size={18} aria-hidden="true" /><span>{t('common.createAccount')}</span>
             </button>
-            <button className="text-action" type="button" onClick={onHome}>Return Home</button>
+            <button className="text-action" type="button" onClick={onHome}>{t('common.returnHome')}</button>
           </div>
         </section>
         <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={handleAuthenticated} />
@@ -498,33 +510,34 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
         targetDistrictId={question?.district_id ?? feedback?.answer.district_id ?? null}
         selectedDistrictId={selectedDistrictId ?? feedback?.selected?.district_id ?? null}
         highlightedBezirke={view === 'setup' ? selectedBezirke : []}
+        masteryByDistrict={masteryByDistrict}
         answered={view === 'feedback'}
         correct={feedback?.correct ?? null}
         onSelect={setSelectedDistrictId}
       />
 
       <header className="training-topbar">
-        <button className="icon-action icon-action--surface" type="button" onClick={() => void goHome()} aria-label="Return to mode selection" title="Home">
+        <button className="icon-action icon-action--surface" type="button" onClick={() => void goHome()} aria-label={t('common.returnModes')} title={t('common.home')}>
           <Home size={19} aria-hidden="true" />
         </button>
-        <div className="training-brand"><Layers3 size={18} aria-hidden="true" /><span>Hamburg Training</span></div>
+        <div className="training-brand"><Layers3 size={18} aria-hidden="true" /><span>{t('training.brand')}</span></div>
         <div className="training-topbar__actions">
-          <button className="icon-action icon-action--surface" type="button" onClick={() => onNavigate('/training/progress')} aria-label="View Training progress" title="Progress">
+          <button className="icon-action icon-action--surface" type="button" onClick={() => onNavigate('/training/progress')} aria-label={t('training.viewProgress')} title={t('training.progressTitle')}>
             <BarChart3 size={19} aria-hidden="true" />
           </button>
-          <button className="icon-action icon-action--surface" type="button" disabled={signingOut} onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
+          <button className="icon-action icon-action--surface" type="button" disabled={signingOut} onClick={() => void signOut()} aria-label={t('common.logout')} title={t('common.logout')}>
             <LogOut size={19} aria-hidden="true" />
           </button>
         </div>
       </header>
 
       <aside className="training-panel" aria-live="polite">
-        <div className="direction-switch" aria-label="Training exercise">
+        <div className="direction-switch" aria-label={t('training.exercise')}>
           <button type="button" className={direction === 'name' ? 'is-active' : ''} disabled={view === 'question'} onClick={() => void changeDirection('name')}>
-            <Search size={16} aria-hidden="true" /> Name It
+            <Search size={16} aria-hidden="true" /> {t('training.nameIt')}
           </button>
           <button type="button" className={direction === 'find' ? 'is-active' : ''} disabled={view === 'question'} onClick={() => void changeDirection('find')}>
-            <SquareMousePointer size={16} aria-hidden="true" /> Find It
+            <SquareMousePointer size={16} aria-hidden="true" /> {t('training.findIt')}
           </button>
         </div>
 
@@ -532,21 +545,21 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
 
         {view === 'setup' ? (
           <section className="training-setup" aria-labelledby="training-title">
-            <p className="eyebrow">Spaced repetition</p>
-            <h1 id="training-title">{direction === 'name' ? 'Name Hamburg' : 'Find Hamburg'}</h1>
+            <p className="eyebrow">{t('training.spacedRepetition')}</p>
+            <h1 id="training-title">{t(direction === 'name' ? 'training.nameHamburg' : 'training.findHamburg')}</h1>
             <p>
               {direction === 'name'
-                ? 'A Stadtteil lights up. Give it a name before the answer fades.'
-                : 'Read the name, select its shape, then confirm your choice.'}
+                ? t('training.nameHelp')
+                : t('training.findHelp')}
             </p>
-            <div className="training-metrics" aria-label="Current Training progress">
-              <div><strong>{bootstrap?.progress.directions[direction].due ?? 0}</strong><span>Due now</span></div>
-              <div><strong>{bootstrap?.progress.directions[direction].practiced ?? 0}</strong><span>Practiced</span></div>
-              <div><strong>{bootstrap?.progress.directions[direction].accuracy ?? 0}%</strong><span>Accuracy</span></div>
+            <div className="training-metrics" aria-label={t('training.currentProgress')}>
+              <div><strong>{bootstrap?.progress.directions[direction].due ?? 0}</strong><span>{t('training.dueNow')}</span></div>
+              <div><strong>{bootstrap?.progress.directions[direction].practiced ?? 0}</strong><span>{t('training.practiced')}</span></div>
+              <div><strong>{formatPercent(bootstrap?.progress.directions[direction].accuracy ?? 0)}</strong><span>{t('training.accuracy')}</span></div>
             </div>
             <fieldset className="scope-picker">
-              <legend>Studying</legend>
-              <button type="button" onClick={() => setSelectedBezirke(bootstrap?.bezirke ?? [])}>All Hamburg</button>
+              <legend>{t('training.studying')}</legend>
+              <button type="button" onClick={() => setSelectedBezirke(bootstrap?.bezirke ?? [])}>{t('training.allHamburg')}</button>
               <div>
                 {bootstrap?.bezirke.map((bezirk) => (
                   <label key={bezirk}>
@@ -557,18 +570,18 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
               </div>
             </fieldset>
             <button className="primary-action" type="button" disabled={submitting} onClick={() => void startSession()}>
-              <span>{submitting ? 'Preparing…' : 'Start Training'}</span><ArrowRight size={20} aria-hidden="true" />
+              <span>{t(submitting ? 'training.preparing' : 'training.start')}</span><ArrowRight size={20} aria-hidden="true" />
             </button>
           </section>
         ) : null}
 
         {view === 'question' && question ? (
-          <section className="training-question" aria-label={direction === 'name' ? 'Name the Stadtteil' : `Find ${question.prompt_name}`}>
-            <p className="eyebrow">Question {sessionAttempts + 1}</p>
+          <section className="training-question" aria-label={direction === 'name' ? t('training.nameDistrict') : t('training.findDistrict', { district: question.prompt_name })}>
+            <p className="eyebrow">{t('training.question', { number: sessionAttempts + 1 })}</p>
             {direction === 'name' ? (
               <>
                 <form className="training-answer-form" onSubmit={handleNameSubmit}>
-                  <label htmlFor="training-answer">Stadtteil name</label>
+                  <label htmlFor="training-answer">{t('common.districtName')}</label>
                   <div className="guess-control">
                     <input
                       ref={inputRef}
@@ -577,7 +590,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
                       onChange={(event) => handleAnswerChange(event.target.value)}
                       onKeyDown={handleAnswerKeyDown}
                       autoComplete="off"
-                      placeholder="Type the name…"
+                      placeholder={t('common.typeName')}
                       role="combobox"
                       aria-autocomplete="list"
                       aria-controls="training-suggestions"
@@ -608,19 +621,19 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
               </>
             ) : (
               <>
-                <h1>Where is {question.prompt_name}?</h1>
-                <p>Select a boundary on the map. You can change it before confirming.</p>
+                <h1>{t('training.where', { district: question.prompt_name })}</h1>
+                <p>{t('training.selectBoundary')}</p>
                 <div className="selected-answer" aria-live="polite">
-                  {selectedDistrictId !== null ? <><span>Selected</span><strong>Area selected</strong></> : <span>No Stadtteil selected</span>}
+                  {selectedDistrictId !== null ? <><span>{t('common.selected')}</span><strong>{t('training.areaSelected')}</strong></> : <span>{t('training.noneSelected')}</span>}
                 </div>
                 <button className="primary-action" type="button" disabled={selectedDistrictId === null || submitting} onClick={() => void submitAnswer()}>
-                  <span>Confirm location</span><Check size={19} aria-hidden="true" />
+                  <span>{t('training.confirmLocation')}</span><Check size={19} aria-hidden="true" />
                 </button>
               </>
             )}
             <div className="question-actions">
-              <button type="button" onClick={() => void submitAnswer(true)} disabled={submitting}>Don’t Know</button>
-              <button type="button" onClick={() => void stopSession()} disabled={submitting}>Stop for now</button>
+              <button type="button" onClick={() => void submitAnswer(true)} disabled={submitting}>{t('training.dontKnow')}</button>
+              <button type="button" onClick={() => void stopSession()} disabled={submitting}>{t('training.stopNow')}</button>
             </div>
           </section>
         ) : null}
@@ -630,37 +643,37 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
             <span className={feedback.correct ? 'feedback-icon feedback-icon--correct' : 'feedback-icon feedback-icon--wrong'}>
               {feedback.correct ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
             </span>
-            <p className="eyebrow">{feedback.correct ? 'Correct' : feedback.outcome === 'dont_know' ? 'Noted' : 'Not quite'}</p>
+            <p className="eyebrow">{t(feedback.correct ? 'training.correct' : feedback.outcome === 'dont_know' ? 'training.noted' : 'training.notQuite')}</p>
             <h1 id="feedback-title">{feedback.answer.name}</h1>
             <p>{feedback.answer.bezirk}</p>
-            {!feedback.correct && feedback.selected ? <p className="feedback-comparison">You selected <strong>{feedback.selected.name}</strong>.</p> : null}
+            {!feedback.correct && feedback.selected ? <p className="feedback-comparison"><Trans i18nKey="training.youSelected" values={{ district: feedback.selected.name }} components={{ strong: <strong /> }} /></p> : null}
             <div className="session-line">
-              <span>{sessionCorrect}/{sessionAttempts} correct</span>
+              <span>{t('training.correctCount', { correct: sessionCorrect, attempts: sessionAttempts })}</span>
               <span>{accuracyLabel(sessionCorrect, sessionAttempts)}</span>
             </div>
             <button ref={nextButtonRef} className="primary-action" type="button" disabled={submitting} onClick={() => void nextQuestion()}>
-              <span>Next</span><ChevronRight size={20} aria-hidden="true" />
+              <span>{t('common.next')}</span><ChevronRight size={20} aria-hidden="true" />
             </button>
             <div className="feedback-actions">
-              {feedback.correct ? <button type="button" onClick={() => void manageCurrentCard('already_known')} disabled={submitting}><ShieldCheck size={16} /> Already know this</button> : null}
-              <button type="button" onClick={() => void manageCurrentCard('shelve')} disabled={submitting}>Shelve</button>
-              <button type="button" onClick={() => void stopSession(false)} disabled={submitting}>Stop for now</button>
+              {feedback.correct ? <button type="button" onClick={() => void manageCurrentCard('already_known')} disabled={submitting}><ShieldCheck size={16} /> {t('training.alreadyKnow')}</button> : null}
+              <button type="button" onClick={() => void manageCurrentCard('shelve')} disabled={submitting}>{t('training.shelve')}</button>
+              <button type="button" onClick={() => void stopSession(false)} disabled={submitting}>{t('training.stopNow')}</button>
             </div>
           </section>
         ) : null}
 
         {view === 'summary' && summary ? (
           <section className="training-summary" aria-labelledby="summary-title">
-            <p className="eyebrow">Session complete</p>
-            <h1 id="summary-title">Good stopping point.</h1>
+            <p className="eyebrow">{t('training.sessionComplete')}</p>
+            <h1 id="summary-title">{t('training.goodStop')}</h1>
             <div className="summary-grid">
-              <div><strong>{summary.attempts}</strong><span>Attempts</span></div>
-              <div><strong>{summary.accuracy}%</strong><span>Accuracy</span></div>
-              <div><strong>{summary.introduced}</strong><span>Introduced</span></div>
-              <div><strong>{summary.needs_practice}</strong><span>Need practice</span></div>
+              <div><strong>{summary.attempts}</strong><span>{t('training.attempts')}</span></div>
+              <div><strong>{formatPercent(summary.accuracy)}</strong><span>{t('training.accuracy')}</span></div>
+              <div><strong>{summary.introduced}</strong><span>{t('training.introduced')}</span></div>
+              <div><strong>{summary.needs_practice}</strong><span>{t('training.needPractice')}</span></div>
             </div>
-            <button className="primary-action" type="button" onClick={() => setView('setup')}><span>Continue Training</span><RotateCcw size={19} /></button>
-            <button className="text-action" type="button" onClick={onHome}>Return Home</button>
+            <button className="primary-action" type="button" onClick={() => setView('setup')}><span>{t('training.continue')}</span><RotateCcw size={19} /></button>
+            <button className="text-action" type="button" onClick={onHome}>{t('common.returnHome')}</button>
           </section>
         ) : null}
       </aside>
@@ -670,9 +683,11 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
 
 /** Display signed-in aggregate and per-mode mastery with reset controls. */
 export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
+  const { t } = useTranslation()
   const [progress, setProgress] = useState<TrainingProgress | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
 
   /** Load compact Training statistics without downloading map geometry. */
   async function loadProgress() {
@@ -681,7 +696,7 @@ export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
       setProgress(await apiFetch<TrainingProgress>('/api/training/progress'))
       setError(null)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Progress could not be loaded.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.progressLoadError'))
     } finally {
       setLoading(false)
     }
@@ -694,7 +709,7 @@ export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
         if (!cancelled) setProgress(result)
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Progress could not be loaded.')
+        if (!cancelled) setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.progressLoadError'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -706,12 +721,12 @@ export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
 
   /** Permanently reset only Training records after explicit confirmation. */
   async function resetProgress() {
-    if (!window.confirm('Reset all Training progress? Daily history and your account will not be changed.')) return
+    if (!window.confirm(t('training.resetConfirm'))) return
     try {
       await apiFetch<void>('/api/training', { method: 'DELETE' })
       await loadProgress()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Training progress could not be reset.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.resetError'))
     }
   }
 
@@ -734,49 +749,49 @@ export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
       setProgress(latest)
       setError(null)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The Stadtteil could not be restored.')
+      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.restoreError'))
     }
   }
 
   const categories: Array<{ key: MasteryCategory; label: string }> = [
-    { key: 'needs_practice', label: 'Needs practice' },
-    { key: 'learning', label: 'Learning' },
-    { key: 'familiar', label: 'Familiar' },
-    { key: 'known', label: 'Known' },
-    { key: 'shelved', label: 'Shelved' },
+    { key: 'needs_practice', label: t('training.needsPractice') },
+    { key: 'learning', label: t('training.learning') },
+    { key: 'familiar', label: t('training.familiar') },
+    { key: 'known', label: t('training.known') },
+    { key: 'shelved', label: t('training.shelved') },
   ]
 
   return (
     <main className="progress-page">
       <header className="progress-topbar">
-        <button className="icon-action" type="button" onClick={onHome} aria-label="Return to mode selection" title="Home"><Home size={19} /></button>
-        <strong>Training progress</strong>
-        <button className="text-action" type="button" onClick={() => onNavigate('/training')}>Train</button>
+        <button className="icon-action" type="button" onClick={onHome} aria-label={t('common.returnModes')} title={t('common.home')}><Home size={19} /></button>
+        <strong>{t('training.progress')}</strong>
+        <button className="text-action" type="button" onClick={() => onNavigate('/training')}>{t('training.train')}</button>
       </header>
       <div className="progress-content">
-        <p className="eyebrow">Your Hamburg</p>
-        <h1>Progress that remembers.</h1>
-        {loading ? <p role="status">Loading progress…</p> : null}
+        <p className="eyebrow">{t('training.yourHamburg')}</p>
+        <h1>{t('training.rememberingProgress')}</h1>
+        {loading ? <p role="status">{t('training.loadingProgress')}</p> : null}
         {error ? <p className="notice notice--error" role="alert">{error}</p> : null}
         {progress ? (
           <>
-            <section className="progress-overview" aria-label="Overall progress">
-              <div><strong>{progress.practiced}<small>/104</small></strong><span>Practiced</span></div>
-              <div><strong>{progress.accuracy}%</strong><span>Recall accuracy</span></div>
-              <div><strong>{progress.fully_known}</strong><span>Known both ways</span></div>
+            <section className="progress-overview" aria-label={t('training.overallProgress')}>
+              <div><strong>{progress.practiced}<small>/104</small></strong><span>{t('training.practiced')}</span></div>
+              <div><strong>{formatPercent(progress.accuracy)}</strong><span>{t('training.recallAccuracy')}</span></div>
+              <div><strong>{progress.fully_known}</strong><span>{t('training.knownBoth')}</span></div>
             </section>
             <section className="mode-breakdown" aria-labelledby="mode-progress-title">
-              <h2 id="mode-progress-title">By exercise</h2>
+              <h2 id="mode-progress-title">{t('training.byExercise')}</h2>
               {(['name', 'find'] as const).map((mode) => (
                 <div key={mode}>
-                  <span>{mode === 'name' ? 'Name It' : 'Find It'}</span>
-                  <strong>{progress.directions[mode].accuracy}%</strong>
-                  <small>{progress.directions[mode].attempts} attempts · {progress.directions[mode].due} due</small>
+                  <span>{t(mode === 'name' ? 'training.nameIt' : 'training.findIt')}</span>
+                  <strong>{formatPercent(progress.directions[mode].accuracy)}</strong>
+                  <small>{t('training.attemptsDue', { attempts: progress.directions[mode].attempts, due: progress.directions[mode].due })}</small>
                 </div>
               ))}
             </section>
             <section className="mastery-list" aria-labelledby="mastery-title">
-              <h2 id="mastery-title">Stadtteile</h2>
+              <h2 id="mastery-title">{t('training.districts')}</h2>
               {categories.map((category) => {
                 const items = progress.items.filter((item) => item.name_category === category.key || item.find_category === category.key)
                 return (
@@ -786,18 +801,18 @@ export function TrainingProgressPage({ onHome, onNavigate }: TrainingAppProps) {
                       <ul>{items.map((item) => (
                         <li key={item.district_id}>
                           <strong>{item.name}</strong><span>{item.bezirk}</span>
-                          {category.key === 'shelved' ? <button type="button" onClick={() => void restoreItem(item)}>Restore</button> : null}
+                          {category.key === 'shelved' ? <button type="button" onClick={() => void restoreItem(item)}>{t('training.restore')}</button> : null}
                         </li>
                       ))}</ul>
-                    ) : <p>Nothing here yet.</p>}
+                    ) : <p>{t('training.empty')}</p>}
                   </details>
                 )
               })}
             </section>
             <section className="reset-training" aria-labelledby="reset-title">
-              <h2 id="reset-title">Reset Training</h2>
-              <p>Delete every Training attempt and review schedule. Daily history and account credentials stay intact.</p>
-              <button type="button" onClick={() => void resetProgress()}><RotateCcw size={17} /> Reset all Training progress</button>
+              <h2 id="reset-title">{t('training.reset')}</h2>
+              <p>{t('training.resetHelp')}</p>
+              <button type="button" onClick={() => void resetProgress()}><RotateCcw size={17} /> {t('training.resetAll')}</button>
             </section>
           </>
         ) : null}

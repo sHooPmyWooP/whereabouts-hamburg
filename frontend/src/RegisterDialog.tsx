@@ -2,7 +2,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, SyntheticEvent } from 'react'
 import { UserPlus, X } from 'lucide-react'
-import { ApiError, apiFetch } from './api'
+import { useTranslation } from 'react-i18next'
+import { ApiError, apiErrorMessage, apiFetch } from './api'
+import { track } from './analytics'
 
 export type Account = {
   id: number
@@ -21,6 +23,7 @@ export function RegisterDialog({
   onClose,
   onRegistered,
 }: RegisterDialogProps) {
+  const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
   const [username, setUsername] = useState('')
@@ -28,6 +31,7 @@ export function RegisterDialog({
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -61,7 +65,7 @@ export function RegisterDialog({
     event.preventDefault()
     setError(null)
     if (password !== passwordConfirmation) {
-      setError('Passwords do not match.')
+      setError(t('auth.passwordMismatch'))
       return
     }
 
@@ -73,17 +77,16 @@ export function RegisterDialog({
       })
       setPassword('')
       setPasswordConfirmation('')
+      track('account_authenticated', { mode: 'registered' })
       onRegistered(account)
       onClose()
     } catch (reason) {
       setError(
         reason instanceof ApiError && reason.status === 409
-          ? 'That username is already taken.'
+          ? t('common.errorByCode.auth_username_taken')
           : reason instanceof ApiError && reason.status === 422
-            ? 'Use a 3–32 character username and an 8–128 character password.'
-          : reason instanceof Error
-            ? reason.message
-            : 'Account could not be created.',
+            ? t('auth.registerValidation')
+            : apiErrorMessage(reason, t, 'auth.registerError'),
       )
     } finally {
       setSubmitting(false)
@@ -102,11 +105,11 @@ export function RegisterDialog({
         <span className="register-dialog__icon" aria-hidden="true">
           <UserPlus size={20} />
         </span>
-        <h2 id="register-title">Create account</h2>
+        <h2 id="register-title">{t('auth.registerTitle')}</h2>
         <button
           className="icon-action"
           type="button"
-          aria-label="Close registration"
+          aria-label={t('auth.closeRegistration')}
           onClick={closeDialog}
           disabled={submitting}
         >
@@ -115,7 +118,7 @@ export function RegisterDialog({
       </div>
 
       <form className="register-form" onSubmit={submitRegistration}>
-        <label htmlFor="register-username">Username</label>
+        <label htmlFor="register-username">{t('common.username')}</label>
         <input
           ref={usernameRef}
           id="register-username"
@@ -131,7 +134,7 @@ export function RegisterDialog({
           required
         />
 
-        <label htmlFor="register-password">Password</label>
+        <label htmlFor="register-password">{t('common.password')}</label>
         <input
           id="register-password"
           name="password"
@@ -145,7 +148,7 @@ export function RegisterDialog({
           required
         />
 
-        <label htmlFor="register-password-confirmation">Confirm password</label>
+        <label htmlFor="register-password-confirmation">{t('common.confirmPassword')}</label>
         <input
           id="register-password-confirmation"
           name="password-confirmation"
@@ -163,10 +166,10 @@ export function RegisterDialog({
           {error}
         </p>
         <p id="register-progress-note" className="register-form__note">
-          Your Daily Challenge progress is saved to your account.
+          {t('auth.registerNote')}
         </p>
         <button className="primary-action" type="submit" disabled={submitting}>
-          <span>{submitting ? 'Creating account…' : 'Create account'}</span>
+          <span>{submitting ? t('common.creatingAccount') : t('common.createAccount')}</span>
           <UserPlus size={19} />
         </button>
       </form>

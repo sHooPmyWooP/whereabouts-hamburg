@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import os
 from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
@@ -5,17 +7,24 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, selectinload
 
+from analytics import admin_router
+from analytics import router as analytics_router
+from analytics_maintenance import run_retention
+from api_errors import ApiHTTPException
 from auth_routes import get_optional_account
 from auth_routes import router as auth_router
-from database import engine, get_db
+from database import SessionLocal, engine, get_db
 from game import (
     GENERATION_VERSION,
     INITIAL_BUDGET,
@@ -46,7 +55,59 @@ app = FastAPI(
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
 app.include_router(auth_router)
+app.include_router(analytics_router)
+app.include_router(admin_router)
 app.include_router(create_training_router(catalog))
+maintenance_task: asyncio.Task[None] | None = None
+
+
+async def analytics_maintenance_loop() -> None:
+    """Run retention daily without requiring another deployment service."""
+    while True:
+        with SessionLocal() as database:
+            run_retention(database)
+        await asyncio.sleep(24 * 60 * 60)
+
+
+@app.on_event("startup")
+async def start_analytics_maintenance() -> None:
+    global maintenance_task
+    if IS_PRODUCTION:
+        if not os.getenv("PRIVACY_CONTACT_EMAIL", "").strip():
+            raise RuntimeError("PRIVACY_CONTACT_EMAIL is required in production")
+        maintenance_task = asyncio.create_task(analytics_maintenance_loop())
+
+
+@app.on_event("shutdown")
+async def stop_analytics_maintenance() -> None:
+    if maintenance_task is not None:
+        maintenance_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await maintenance_task
+
+
+@app.exception_handler(StarletteHTTPException)
+def coded_http_error(_request: Request, error: StarletteHTTPException) -> JSONResponse:
+    """Expose diagnostic detail alongside a stable client-facing error code."""
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "detail": error.detail,
+            "code": getattr(error, "code", f"http.{error.status_code}"),
+        },
+        headers=error.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+def validation_error(_request: Request, error: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": jsonable_encoder(error.errors()),
+            "code": "request.validation",
+        },
+    )
 
 
 @app.exception_handler(OperationalError)
@@ -56,7 +117,10 @@ def database_unavailable(
     """Return a sanitized, non-cacheable response when PostgreSQL is unavailable."""
     return JSONResponse(
         status_code=503,
-        content={"detail": "Account service temporarily unavailable. Please try again."},
+        content={
+            "detail": "Account service temporarily unavailable. Please try again.",
+            "code": "service.database_unavailable",
+        },
         headers={"Cache-Control": "no-store", "Retry-After": "5"},
     )
 
@@ -372,7 +436,11 @@ def submit_guess(
             .limit(1)
         )
         if previous_guess is not None:
-            raise HTTPException(status_code=409, detail="This Stadtteil has already been guessed")
+            raise ApiHTTPException(
+                status_code=409,
+                code="daily_already_guessed",
+                detail="This Stadtteil has already been guessed",
+            )
         solved_pin_indices = set(game.solved_pin_indices)
         budget_remaining = game.budget_remaining
     else:
@@ -397,6 +465,9 @@ def submit_guess(
         game.status = result.status
         if result.status == "finished":
             game.finished_at = datetime.now(UTC)
+            game.finish_reason = (
+                "solved" if len(game.solved_pin_indices) == PIN_COUNT else "budget"
+            )
         database.add(
             Guess(
                 game=game,
@@ -411,13 +482,27 @@ def submit_guess(
 
 
 @app.post("/api/daily/give-up", response_model=GiveUpResponse)
-def give_up_daily(request: DailyGiveUpRequest) -> GiveUpResponse:
+def give_up_daily(
+    request: DailyGiveUpRequest,
+    database: Annotated[Session, Depends(get_db)],
+    account: Annotated[Account | None, Depends(get_optional_account)],
+) -> GiveUpResponse:
     today = current_challenge_date()
     if request.challenge_date != today:
         raise HTTPException(status_code=400, detail="Only today's Daily Challenge is active")
 
+    budget_remaining = request.anonymous_state.budget_remaining
+    if account is not None:
+        game = get_or_create_account_game(database, account.id, today)
+        if game.status != "finished":
+            game.status = "finished"
+            game.finished_at = datetime.now(UTC)
+            game.finish_reason = "gave_up"
+            database.commit()
+        budget_remaining = game.budget_remaining
+
     return GiveUpResponse(
-        budget_remaining=request.anonymous_state.budget_remaining,
+        budget_remaining=budget_remaining,
         status="finished",
         reveals=[reveal(pin) for pin in challenge_generator.generate(today)],
     )

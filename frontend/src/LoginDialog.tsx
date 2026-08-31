@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, SyntheticEvent } from 'react'
 import { LogIn, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Account } from './RegisterDialog'
-import { ApiError, apiFetch } from './api'
+import { ApiError, apiErrorMessage, apiFetch } from './api'
+import { track } from './analytics'
 
 type LoginDialogProps = {
   open: boolean
@@ -13,12 +15,14 @@ type LoginDialogProps = {
 
 /** Render an accessible modal for signing in to an existing Account. */
 export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
+  const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -57,17 +61,16 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
         body: JSON.stringify({ username, password }),
       })
       setPassword('')
+      track('account_authenticated', { mode: 'login' })
       onLoggedIn(account)
       onClose()
     } catch (reason) {
       setError(
         reason instanceof ApiError && reason.status === 401
-          ? 'Username or password is incorrect.'
+          ? t('common.errorByCode.auth_invalid_credentials')
           : reason instanceof ApiError && reason.status === 422
-            ? 'Enter a valid username and password.'
-            : reason instanceof Error
-              ? reason.message
-              : 'Could not log in.',
+            ? t('auth.loginValidation')
+            : apiErrorMessage(reason, t, 'auth.loginError'),
       )
     } finally {
       setSubmitting(false)
@@ -86,11 +89,11 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
         <span className="register-dialog__icon" aria-hidden="true">
           <LogIn size={20} />
         </span>
-        <h2 id="login-title">Log in</h2>
+        <h2 id="login-title">{t('auth.loginTitle')}</h2>
         <button
           className="icon-action"
           type="button"
-          aria-label="Close login"
+          aria-label={t('auth.closeLogin')}
           onClick={closeDialog}
           disabled={submitting}
         >
@@ -99,7 +102,7 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
       </div>
 
       <form className="register-form" onSubmit={submitLogin}>
-        <label htmlFor="login-username">Username</label>
+        <label htmlFor="login-username">{t('common.username')}</label>
         <input
           ref={usernameRef}
           id="login-username"
@@ -115,7 +118,7 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
           required
         />
 
-        <label htmlFor="login-password">Password</label>
+        <label htmlFor="login-password">{t('common.password')}</label>
         <input
           id="login-password"
           name="password"
@@ -133,10 +136,10 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
           {error}
         </p>
         <p id="login-progress-note" className="register-form__note">
-          Your Daily Challenge progress is restored when you sign in.
+          {t('auth.loginNote')}
         </p>
         <button className="primary-action" type="submit" disabled={submitting}>
-          <span>{submitting ? 'Logging in…' : 'Log in'}</span>
+          <span>{submitting ? t('common.loggingIn') : t('common.login')}</span>
           <LogIn size={19} />
         </button>
       </form>

@@ -10,6 +10,7 @@ import {
   useMap,
   ZoomControl,
 } from 'react-leaflet'
+import { useTranslation } from 'react-i18next'
 
 export type Pin = {
   index: number
@@ -94,10 +95,11 @@ export function MapView({
   previewMode,
   annotateMissedDistricts,
 }: MapViewProps) {
+  const { t } = useTranslation()
   const solved = new Set(solvedPinIndices)
 
   return (
-    <div className="map-surface" aria-label="Map of Hamburg">
+    <div className="map-surface" aria-label={t('common.mapHamburg')}>
       <MapContainer
         center={[53.55, 10]}
         zoom={10}

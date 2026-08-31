@@ -16,11 +16,14 @@ from database import Base, get_db
 from main import app
 from models import (
     Account,
+    AnalyticsDailyAggregate,
+    AnalyticsEvent,
     GameDailyDistricts,
     Guess,
     TrainingAttempt,
     TrainingCard,
     TrainingSession,
+    VisitorAccountLink,
 )
 
 test_engine = create_engine(
@@ -43,24 +46,26 @@ def override_get_db() -> Generator[Session, None, None]:
 app.dependency_overrides[get_db] = override_get_db
 
 
-@pytest.fixture(autouse=True)
-def clear_database() -> Generator[None, None, None]:
+def _delete_records() -> None:
     """Remove test records in foreign-key order while retaining the schema."""
     with TestSession.begin() as session:
+        session.execute(delete(AnalyticsEvent))
+        session.execute(delete(VisitorAccountLink))
+        session.execute(delete(AnalyticsDailyAggregate))
         session.execute(delete(TrainingAttempt))
         session.execute(delete(TrainingCard))
         session.execute(delete(TrainingSession))
         session.execute(delete(Guess))
         session.execute(delete(GameDailyDistricts))
         session.execute(delete(Account))
+
+
+@pytest.fixture(autouse=True)
+def clear_database() -> Generator[None, None, None]:
+    """Isolate each API test."""
+    _delete_records()
     yield
-    with TestSession.begin() as session:
-        session.execute(delete(TrainingAttempt))
-        session.execute(delete(TrainingCard))
-        session.execute(delete(TrainingSession))
-        session.execute(delete(Guess))
-        session.execute(delete(GameDailyDistricts))
-        session.execute(delete(Account))
+    _delete_records()
 
 
 @pytest.fixture

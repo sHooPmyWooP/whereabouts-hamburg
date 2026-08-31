@@ -3,7 +3,9 @@ import type { GeoJsonObject } from 'geojson'
 import L from 'leaflet'
 import { Compass, Home, MapPinned, X } from 'lucide-react'
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl } from 'react-leaflet'
+import { useTranslation } from 'react-i18next'
 import { apiFetch } from './api'
+import i18n from './i18n'
 
 type ExploreDistrict = {
   id: number
@@ -76,9 +78,11 @@ function ExploreBoundary({
 
 /** Let visitors freely inspect Hamburg and reveal Stadtteil names by selection. */
 export function ExploreApp({ onHome }: ExploreAppProps) {
+  const { t } = useTranslation()
   const [districts, setDistricts] = useState<ExploreDistrict[]>([])
   const [selected, setSelected] = useState<ExploreDistrict | null>(null)
   const [error, setError] = useState<string | null>(null)
+
 
   useEffect(() => {
     let cancelled = false
@@ -86,8 +90,8 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
       .then((result) => {
         if (!cancelled) setDistricts(result)
       })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'The map could not be loaded.')
+      .catch(() => {
+        if (!cancelled) setError(i18n.t('explore.loadError'))
       })
     return () => {
       cancelled = true
@@ -98,7 +102,7 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
 
   return (
     <main className="explore-shell">
-      <div className="map-surface explore-map" aria-label="Interactive map of Hamburg Stadtteile">
+      <div className="map-surface explore-map" aria-label={t('common.interactiveDistrictMap')}>
         <MapContainer
           bounds={HAMBURG_BOUNDS}
           boundsOptions={{ padding: [24, 24] }}
@@ -122,11 +126,11 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
       </div>
 
       <header className="brand-bar explore-brand">
-        <button className="brand-home" type="button" onClick={onHome} aria-label="Return to mode selection" title="Home">
+        <button className="brand-home" type="button" onClick={onHome} aria-label={t('common.returnModes')} title={t('common.home')}>
           <Home size={17} aria-hidden="true" />
         </button>
         <span className="brand-mark"><Compass size={18} strokeWidth={2.4} /></span>
-        <span>Hamburg Explore</span>
+        <span>{t('explore.brand')}</span>
       </header>
 
       <aside className={selected ? 'explore-card explore-card--selected' : 'explore-card'} aria-live="polite">
@@ -134,19 +138,19 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
           <p className="notice notice--error" role="alert">{error}</p>
         ) : selected ? (
           <>
-            <button className="explore-card__close" type="button" onClick={() => setSelected(null)} aria-label="Clear selected Stadtteil">
+            <button className="explore-card__close" type="button" onClick={() => setSelected(null)} aria-label={t('explore.clear')}>
               <X size={17} aria-hidden="true" />
             </button>
-            <p className="eyebrow">Stadtteil</p>
+            <p className="eyebrow">{t('explore.district')}</p>
             <h1>{selected.name}</h1>
             <p>{selected.bezirk}</p>
           </>
         ) : (
           <>
             <MapPinned size={24} aria-hidden="true" />
-            <p className="eyebrow">Explore Hamburg</p>
-            <h1>{districts.length === 0 ? 'Loading map…' : 'Pick a Stadtteil'}</h1>
-            <p>Move around the map and select any boundary to reveal its name.</p>
+            <p className="eyebrow">{t('explore.eyebrow')}</p>
+            <h1>{districts.length === 0 ? t('explore.loadingMap') : t('explore.pick')}</h1>
+            <p>{t('explore.help')}</p>
           </>
         )}
       </aside>

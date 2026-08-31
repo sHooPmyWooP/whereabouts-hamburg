@@ -4,9 +4,12 @@ UV       ?= uv
 NPM      ?= npm
 BACKEND  := backend
 FRONTEND := frontend
+DEV_DATABASE_PORT ?= 55432
+DEV_DATABASE_URL  ?= postgresql+psycopg://postgres:postgres@127.0.0.1:$(DEV_DATABASE_PORT)/whereabouts_hamburg
 
 .PHONY: help install install-backend install-frontend dev dev-backend dev-frontend up \
-        build test test-backend lint lint-backend lint-frontend format clean
+        build test test-backend lint lint-backend lint-frontend format clean \
+        promote-admin-dev promote-admin-prd
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -31,6 +34,14 @@ dev-frontend: ## Run the frontend development server
 
 up: ## Update and restart the live Docker Compose application
 	docker compose up -d --build
+
+promote-admin-dev: ## Promote a development Account: make promote-admin-dev USERNAME=name
+	@test -n "$(USERNAME)" || (echo "USERNAME is required, for example: make promote-admin-dev USERNAME=david" >&2; exit 2)
+	cd $(BACKEND) && DATABASE_URL="$(DEV_DATABASE_URL)" $(UV) run python admin_cli.py promote "$(USERNAME)"
+
+promote-admin-prd: ## Promote a production Account: make promote-admin-prd USERNAME=name
+	@test -n "$(USERNAME)" || (echo "USERNAME is required, for example: make promote-admin-prd USERNAME=david" >&2; exit 2)
+	docker compose exec -T app uv run python admin_cli.py promote "$(USERNAME)"
 
 build: ## Build the production frontend
 	cd $(FRONTEND) && $(NPM) run build

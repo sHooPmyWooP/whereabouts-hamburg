@@ -12,7 +12,9 @@ import {
   MapPinned,
   UserPlus,
 } from 'lucide-react'
-import { ApiError, apiFetch } from './api'
+import { useTranslation } from 'react-i18next'
+import { ApiError, apiErrorMessage, apiFetch } from './api'
+import i18n from './i18n'
 import { LoginDialog } from './LoginDialog'
 import { MapView } from './MapView'
 import type { Account } from './RegisterDialog'
@@ -24,6 +26,7 @@ type ModeHomeProps = {
 
 /** Present the Daily, Training, and Explore application modes. */
 export function ModeHome({ onNavigate }: ModeHomeProps) {
+  const { t } = useTranslation()
   const [account, setAccount] = useState<Account | null>(null)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
@@ -33,6 +36,7 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
 
+
   useEffect(() => {
     let cancelled = false
     apiFetch<Account>('/api/auth/me')
@@ -41,7 +45,7 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
       })
       .catch((reason: unknown) => {
         if (!cancelled && !(reason instanceof ApiError && reason.status === 401)) {
-          setAccountError('Account status could not be loaded.')
+          setAccountError(i18n.t('common.accountStatusError'))
         }
       })
     return () => {
@@ -78,7 +82,7 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
       setAccount(null)
       setTrainingPending(false)
     } catch (reason) {
-      setAccountError(reason instanceof Error ? reason.message : 'Could not sign out.')
+      setAccountError(apiErrorMessage(reason, t, 'common.logoutError'))
     } finally {
       setSigningOut(false)
     }
@@ -106,43 +110,43 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
       </header>
       <section className="mode-picker" aria-labelledby="mode-title">
         <div className="mode-picker__heading">
-          <p className="eyebrow">Choose your map</p>
-          <h1 id="mode-title">Where in Hamburg?</h1>
-          <p>Take today’s challenge or build lasting Stadtteil recall.</p>
+          <p className="eyebrow">{t('home.eyebrow')}</p>
+          <h1 id="mode-title">{t('home.title')}</h1>
+          <p>{t('home.subtitle')}</p>
         </div>
         {accountError ? <p className="notice notice--error" role="alert">{accountError}</p> : null}
         <div className="mode-options">
           <button className="mode-option mode-option--daily" type="button" onClick={() => onNavigate('/daily')}>
             <span className="mode-option__icon"><CalendarDays aria-hidden="true" /></span>
-            <span className="mode-option__copy"><strong>Daily</strong><small>Five Pins. Ten Guesses.</small></span>
+            <span className="mode-option__copy"><strong>{t('home.daily')}</strong><small>{t('home.dailyHelp')}</small></span>
             <ArrowRight size={20} aria-hidden="true" />
           </button>
           <button ref={loginButtonRef} className="mode-option mode-option--training" type="button" onClick={requestTraining}>
             <span className="mode-option__icon"><GraduationCap aria-hidden="true" /></span>
-            <span className="mode-option__copy"><strong>Training</strong><small>Remember every Stadtteil.</small></span>
-            {account ? <ArrowRight size={20} aria-hidden="true" /> : <LockKeyhole size={19} aria-label="Sign in required" />}
+            <span className="mode-option__copy"><strong>{t('home.training')}</strong><small>{t('home.trainingHelp')}</small></span>
+            {account ? <ArrowRight size={20} aria-hidden="true" /> : <LockKeyhole size={19} aria-label={t('home.trainingRequiresLogin')} />}
           </button>
           <button className="mode-option mode-option--explore" type="button" onClick={() => onNavigate('/explore')}>
             <span className="mode-option__icon"><MapPinned aria-hidden="true" /></span>
-            <span className="mode-option__copy"><strong>Explore</strong><small>Discover Hamburg at your own pace.</small></span>
+            <span className="mode-option__copy"><strong>{t('home.explore')}</strong><small>{t('home.exploreHelp')}</small></span>
             <ArrowRight size={20} aria-hidden="true" />
           </button>
         </div>
         <div className="mode-account">
           {account ? (
             <>
-              <div className="account-status account-status--light" aria-label={`Signed in as ${account.username}`}>
+              <div className="account-status account-status--light" aria-label={t('common.signedInAs', { username: account.username })}>
                 <CircleUserRound size={18} aria-hidden="true" />
-                <span>Signed in as <strong>{account.username}</strong></span>
+                <span>{t('common.signedInAs', { username: account.username })}</span>
               </div>
               <button type="button" disabled={signingOut} onClick={() => void signOut()}>
-                <LogOut size={17} aria-hidden="true" /> {signingOut ? 'Signing out…' : 'Sign out'}
+                <LogOut size={17} aria-hidden="true" /> {signingOut ? t('common.loggingOut') : t('common.logout')}
               </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => setLoginOpen(true)}><LogIn size={17} /> Log in</button>
-              <button ref={registrationButtonRef} type="button" onClick={() => setRegistrationOpen(true)}><UserPlus size={17} /> Create account</button>
+              <button type="button" onClick={() => setLoginOpen(true)}><LogIn size={17} /> {t('common.login')}</button>
+              <button ref={registrationButtonRef} type="button" onClick={() => setRegistrationOpen(true)}><UserPlus size={17} /> {t('common.createAccount')}</button>
             </>
           )}
         </div>
