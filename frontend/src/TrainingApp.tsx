@@ -144,15 +144,11 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
     if (accountStatus !== 'authenticated') return
 
     let cancelled = false
-    Promise.all([
-      apiFetch<TrainingDistrict[]>('/api/map/districts/v1'),
-      apiFetch<TrainingProgress>('/api/training/progress'),
-    ])
-      .then(([districts, progress]) => {
+    apiFetch<TrainingBootstrap>('/api/training/bootstrap')
+      .then((result) => {
         if (cancelled) return
-        const bezirke = [...new Set(districts.map((district) => district.bezirk))].sort()
-        setBootstrap({ districts, bezirke, progress })
-        setSelectedBezirke(bezirke)
+        setBootstrap(result)
+        setSelectedBezirke(result.bezirke)
         setAuthenticationRequired(false)
       })
       .catch((reason: unknown) => {

@@ -7,18 +7,13 @@ import { useTranslation } from 'react-i18next'
 import { apiFetch } from './api'
 import i18n from './i18n'
 
-type MapDistrict = {
+type ExploreDistrict = {
   id: number
   name: string
   bezirk: string
   boundary: GeoJsonObject
-}
-
-type ExploreDistrict = MapDistrict & {
   fun_facts: string[]
 }
-
-type ExploreDistrictDetails = Omit<ExploreDistrict, 'boundary'>
 
 type ExploreAppProps = {
   onHome: () => void
@@ -94,17 +89,9 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      apiFetch<MapDistrict[]>('/api/map/districts/v1'),
-      apiFetch<ExploreDistrictDetails[]>('/api/explore/districts'),
-    ])
-      .then(([mapDistricts, details]) => {
-        if (cancelled) return
-        const detailsById = new Map(details.map((district) => [district.id, district]))
-        setDistricts(mapDistricts.map((district) => ({
-          ...district,
-          fun_facts: detailsById.get(district.id)?.fun_facts ?? [],
-        })))
+    apiFetch<ExploreDistrict[]>('/api/explore/districts')
+      .then((result) => {
+        if (!cancelled) setDistricts(result)
       })
       .catch(() => {
         if (!cancelled) setError(i18n.t('explore.loadError'))

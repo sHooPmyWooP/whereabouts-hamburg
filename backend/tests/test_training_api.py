@@ -23,31 +23,33 @@ def _all_bezirke() -> list[str]:
 
 
 def test_training_requires_a_signed_account(client: TestClient) -> None:
-    """Anonymous users cannot read progress or start sessions."""
-    progress = client.get("/api/training/progress")
+    """Anonymous users cannot read geometry, progress, or start sessions."""
+    bootstrap = client.get("/api/training/bootstrap")
     session = client.post(
         "/api/training/sessions",
         json={"direction": "name", "selected_bezirke": _all_bezirke()},
     )
 
-    assert progress.status_code == 401
-    assert progress.headers["cache-control"] == "no-store"
+    assert bootstrap.status_code == 401
+    assert bootstrap.headers["cache-control"] == "no-store"
     assert session.status_code == 401
 
 
-def test_progress_returns_empty_account_state_without_geometry(
+def test_bootstrap_returns_training_geometry_and_empty_progress(
     client: TestClient,
 ) -> None:
-    """Signed users receive fresh progress without the static map payload."""
-    _register(client, "ProgressPlayer")
+    """Signed users receive all boundaries without any fabricated progress."""
+    _register(client, "BootstrapPlayer")
 
-    response = client.get("/api/training/progress")
+    response = client.get("/api/training/bootstrap")
 
     assert response.status_code == 200
     result = response.json()
-    assert "districts" not in result
-    assert result["attempts"] == 0
-    assert result["directions"]["name"]["due"] == 0
+    assert len(result["districts"]) == 104
+    assert len(result["bezirke"]) == 7
+    assert result["districts"][0]["boundary"]["type"] == "MultiPolygon"
+    assert result["progress"]["attempts"] == 0
+    assert result["progress"]["directions"]["name"]["due"] == 0
     assert response.headers["cache-control"] == "no-store"
 
 

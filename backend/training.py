@@ -429,6 +429,28 @@ def create_training_router(catalog: DistrictCatalog) -> APIRouter:
     """Create Training routes over the shared in-memory District catalog."""
     router = APIRouter(prefix="/api/training", tags=["training"])
 
+    @router.get("/bootstrap")
+    def bootstrap_training(
+        response: Response,
+        database: Annotated[Session, Depends(get_db)],
+        account: Annotated[Account, Depends(require_account)],
+    ) -> dict[str, Any]:
+        """Return public Training geometry and the signed Account's progress."""
+        response.headers.update(NO_STORE_HEADERS)
+        return {
+            "districts": [
+                {
+                    "id": district.id,
+                    "name": district.name,
+                    "bezirk": district.bezirk,
+                    "boundary": district.boundary,
+                }
+                for district in catalog.districts
+            ],
+            "bezirke": sorted({district.bezirk for district in catalog.districts}),
+            "progress": _progress_payload(database, catalog, account.id),
+        }
+
     @router.get("/progress")
     def get_training_progress(
         response: Response,

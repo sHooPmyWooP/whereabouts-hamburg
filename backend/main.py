@@ -209,11 +209,8 @@ class DistrictSummary(BaseModel):
     bezirk: str
 
 
-class MapDistrict(DistrictSummary):
-    boundary: dict[str, Any]
-
-
 class ExploreDistrict(DistrictSummary):
+    boundary: dict[str, Any]
     fun_facts: list[str]
 
 
@@ -444,30 +441,16 @@ def list_districts() -> list[DistrictSummary]:
     ]
 
 
-@app.get("/api/map/districts/v1", response_model=list[MapDistrict])
-def map_districts(response: Response) -> list[MapDistrict]:
-    """Return versioned Stadtteil geometry shared by every map mode."""
-    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    return [
-        MapDistrict(
-            id=district.id,
-            name=district.name,
-            bezirk=district.bezirk,
-            boundary=district.boundary,
-        )
-        for district in catalog.districts
-    ]
-
-
 @app.get("/api/explore/districts", response_model=list[ExploreDistrict])
 def explore_districts(response: Response) -> list[ExploreDistrict]:
-    """Return the lightweight facts used only by the interactive explorer."""
+    """Return public Stadtteil geometry for the interactive explorer."""
     response.headers["Cache-Control"] = "public, max-age=86400"
     return [
         ExploreDistrict(
             id=district.id,
             name=district.name,
             bezirk=district.bezirk,
+            boundary=district.boundary,
             fun_facts=fun_facts[district.name],
         )
         for district in catalog.districts
