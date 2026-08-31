@@ -56,6 +56,14 @@ _Avoid_: Session, round, match
 A public ranking of Accounts by Daily Challenge performance. Deferred to Task 4; when built, it is Accounts-only. Anonymous results live only in the browser (localStorage) and never rank.
 _Avoid_: Ladder, ranking, scoreboard
 
+**Shared Map**:
+A replayable five-Pin challenge generated from a shareable seed instead of the calendar date, so every Player opening its link receives the same map.
+_Avoid_: Daily Challenge, custom Daily, private game
+
+**Result Share**:
+A localized, spoiler-free summary available after a Daily Challenge or Shared Map finishes, containing aggregate performance and a five-slot Pin outcome row in canonical Pin order but never District names, Pin locations, map imagery, Guess history details, or revealed boundaries.
+_Avoid_: Answer share, solution, result card
+
 ## Relationships
 
 - A **Daily Challenge** contains an ordered set of **Pins**
@@ -65,6 +73,8 @@ _Avoid_: Ladder, ranking, scoreboard
 - An **Account** owns one **History**; a **History** has one result per **Daily Challenge** played
 - Guess-checking is **server-authoritative**: the server holds the answer Districts and boundary polygons; the client sends a Guess and receives solved/miss + Distance Feedback. The client never learns the answers until a Pin is solved or the Challenge ends.
 - **Game** (progress) storage splits by identity: anonymous Players keep progress in the browser (localStorage); logged-in Players have a server-side **Game** row that becomes **History** when finished. Answer-checking stays server-side for both.
+- A **Result Share** is produced only for a finished **Daily Challenge** or **Shared Map** and represents each canonical Pin position with its number when solved or `❌` when unsolved; total Guesses remain an aggregate and missed Guesses are never attributed to individual Districts.
+- A **Shared Map** link contains its seed, allowing another Player to replay the same ordered set of Pins.
 
 ## Flagged ambiguities
 

@@ -3,18 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, SyntheticEvent } from 'react'
 import { LogIn, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Account } from './RegisterDialog'
-import { ApiError, apiErrorMessage, apiFetch } from './api'
-import { track } from './analytics'
+import { ApiError, apiErrorMessage } from './api'
 
 type LoginDialogProps = {
   open: boolean
   onClose: () => void
-  onLoggedIn: (account: Account) => void
+  onSubmit: (credentials: { username: string; password: string }) => Promise<void>
 }
 
 /** Render an accessible modal for signing in to an existing Account. */
-export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
+export function LoginDialog({ open, onClose, onSubmit }: LoginDialogProps) {
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
@@ -56,13 +54,8 @@ export function LoginDialog({ open, onClose, onLoggedIn }: LoginDialogProps) {
     setError(null)
     setSubmitting(true)
     try {
-      const account = await apiFetch<Account>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      })
+      await onSubmit({ username, password })
       setPassword('')
-      track('account_authenticated', { mode: 'login' })
-      onLoggedIn(account)
       onClose()
     } catch (reason) {
       setError(

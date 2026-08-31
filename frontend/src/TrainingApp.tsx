@@ -19,10 +19,9 @@ import {
   X,
 } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
+import { useAccount } from './accountContext'
 import { ApiError, apiErrorMessage, apiFetch } from './api'
-import { LoginDialog } from './LoginDialog'
 import i18n, { activeLanguage, formatPercent } from './i18n'
-import { RegisterDialog } from './RegisterDialog'
 import { TrainingMap } from './TrainingMap'
 import type { TrainingDistrict, TrainingMasteryCategory } from './TrainingMap'
 
@@ -115,6 +114,15 @@ function accuracyLabel(correct: number, attempts: number) {
 /** Render the authenticated, endless Training workflow. */
 export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   const { t } = useTranslation()
+  const {
+    status: accountStatus,
+    error: accountError,
+    signingOut,
+    openLogin,
+    openRegistration,
+    signOut: signOutAccount,
+    markAnonymous,
+  } = useAccount()
   const [bootstrap, setBootstrap] = useState<TrainingBootstrap | null>(null)
   const [direction, setDirection] = useState<Direction>('name')
   const [selectedBezirke, setSelectedBezirke] = useState<string[]>([])
@@ -127,49 +135,30 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [authenticationRequired, setAuthenticationRequired] = useState(false)
-  const [loginOpen, setLoginOpen] = useState(false)
-  const [registrationOpen, setRegistrationOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextButtonRef = useRef<HTMLButtonElement>(null)
-  const loginButtonRef = useRef<HTMLButtonElement>(null)
-  const registrationButtonRef = useRef<HTMLButtonElement>(null)
-
-
-  /** Reload geometry and server progress after authentication or reset. */
-  async function loadTraining() {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await apiFetch<TrainingBootstrap>('/api/training/bootstrap')
-      setBootstrap(result)
-      setSelectedBezirke(result.bezirke)
-      setAuthenticationRequired(false)
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 401) {
-        setAuthenticationRequired(true)
-      } else {
-        setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.loadError'))
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   useEffect(() => {
+    if (accountStatus !== 'authenticated') return
+
     let cancelled = false
-    apiFetch<TrainingBootstrap>('/api/training/bootstrap')
-      .then((result) => {
+    Promise.all([
+      apiFetch<TrainingDistrict[]>('/api/map/districts/v1'),
+      apiFetch<TrainingProgress>('/api/training/progress'),
+    ])
+      .then(([districts, progress]) => {
         if (cancelled) return
-        setBootstrap(result)
-        setSelectedBezirke(result.bezirke)
+        const bezirke = [...new Set(districts.map((district) => district.bezirk))].sort()
+        setBootstrap({ districts, bezirke, progress })
+        setSelectedBezirke(bezirke)
         setAuthenticationRequired(false)
       })
       .catch((reason: unknown) => {
         if (cancelled) return
         if (reason instanceof ApiError && reason.status === 401) {
+          markAnonymous()
           setAuthenticationRequired(true)
         } else {
           setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'training.loadError'))
@@ -181,7 +170,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [accountStatus, markAnonymous])
 
   useEffect(() => {
     if (submitting) return
@@ -194,27 +183,11 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
 
   /** End the Account session and return Training to its authentication gate. */
   async function signOut() {
-    if (signingOut) return
-    setSigningOut(true)
-    setError(null)
-    try {
-      await apiFetch<{ status: string }>('/api/auth/logout', { method: 'POST' })
-      setBootstrap(null)
-      setQuestion(null)
-      setFeedback(null)
-      setAuthenticationRequired(true)
-    } catch (reason) {
-      setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'common.logoutError'))
-    } finally {
-      setSigningOut(false)
-    }
-  }
-
-  /** Restore Training immediately after a successful login or registration. */
-  async function handleAuthenticated() {
-    setLoginOpen(false)
-    setRegistrationOpen(false)
-    await loadTraining()
+    if (!(await signOutAccount())) return
+    setBootstrap(null)
+    setQuestion(null)
+    setFeedback(null)
+    setAuthenticationRequired(true)
   }
 
   /** Start a fresh server-owned queue for the selected mode and scope. */
@@ -470,7 +443,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
       )
     : {}
 
-  if (loading) {
+  if (accountStatus === 'loading' || (accountStatus === 'authenticated' && loading)) {
     return (
       <main className="training-shell training-shell--loading">
         <div className="training-loading" role="status">{t('training.loading')}</div>
@@ -478,7 +451,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
     )
   }
 
-  if (authenticationRequired) {
+  if (accountStatus === 'anonymous' || authenticationRequired) {
     return (
       <main className="training-shell training-shell--locked">
         <section className="training-locked" aria-labelledby="training-locked-title">
@@ -487,17 +460,16 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
           <h1 id="training-locked-title">{t('training.signInTitle')}</h1>
           <p>{t('training.signInHelp')}</p>
           <div className="training-locked__actions">
-            <button ref={loginButtonRef} className="primary-action" type="button" onClick={() => setLoginOpen(true)}>
+            <button className="primary-action" type="button" onClick={() => openLogin({ onAuthenticated: () => setLoading(true) })}>
               <span>{t('common.login')}</span><LogIn size={19} aria-hidden="true" />
             </button>
-            <button ref={registrationButtonRef} className="secondary-action secondary-action--light" type="button" onClick={() => setRegistrationOpen(true)}>
+            <button className="secondary-action secondary-action--light" type="button" onClick={() => openRegistration({ onAuthenticated: () => setLoading(true) })}>
               <UserPlus size={18} aria-hidden="true" /><span>{t('common.createAccount')}</span>
             </button>
             <button className="text-action" type="button" onClick={onHome}>{t('common.returnHome')}</button>
           </div>
+          {accountError ? <p className="notice notice--error" role="alert">{accountError}</p> : null}
         </section>
-        <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={handleAuthenticated} />
-        <RegisterDialog open={registrationOpen} onClose={() => setRegistrationOpen(false)} onRegistered={handleAuthenticated} />
       </main>
     )
   }
@@ -541,7 +513,7 @@ export function TrainingApp({ onHome, onNavigate }: TrainingAppProps) {
           </button>
         </div>
 
-        {error ? <p className="notice notice--error" role="alert">{error}</p> : null}
+        {accountError || error ? <p className="notice notice--error" role="alert">{accountError ?? error}</p> : null}
 
         {view === 'setup' ? (
           <section className="training-setup" aria-labelledby="training-title">

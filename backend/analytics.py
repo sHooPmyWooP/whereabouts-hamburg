@@ -36,6 +36,8 @@ ALLOWED_EVENTS = {
     "daily_completed",
     "seeded_started",
     "seeded_completed",
+    "daily_result_shared",
+    "seeded_result_shared",
     "account_authenticated",
 }
 ALLOWED_PROPERTIES = {
@@ -50,6 +52,7 @@ ALLOWED_PROPERTIES = {
     "utm_source",
     "utm_medium",
     "utm_campaign",
+    "method",
 }
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_EVENTS = 120

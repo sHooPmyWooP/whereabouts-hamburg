@@ -7,110 +7,20 @@ import { useTranslation } from 'react-i18next'
 import { AdminPage } from './AdminPage'
 import { AnalyticsPrivacy } from './AnalyticsPrivacy'
 import { AppMenu } from './AppMenu'
+import { AccountProvider } from './Account'
+import { useAccount } from './accountContext'
+import type { Account } from './accountContext'
 import { ExploreApp } from './ExploreApp'
-import { LoginDialog } from './LoginDialog'
 import { LeaderboardApp } from './LeaderboardApp'
-import type { MissedDistrict, Pin, Reveal } from './MapView'
 import { MapView } from './MapView'
 import { ModeHome } from './ModeHome'
-import type { Account } from './RegisterDialog'
-import { RegisterDialog } from './RegisterDialog'
+import { pinOutcomeRow, resultShareText } from './resultShare'
 import { TrainingApp, TrainingProgressPage } from './TrainingApp'
-import { ApiError, apiErrorMessage, apiFetch } from './api'
-import i18n, { activeLanguage } from './i18n'
+import { activeLanguage } from './i18n'
 import { firstTouchContext, track } from './analytics'
+import { requestedSeed, useDailyChallenge } from './useDailyChallenge'
+import type { District } from './useDailyChallenge'
 import './App.css'
-
-type District = {
-  id: number
-  name: string
-}
-
-type ChallengeResponse = {
-  generation_version: string
-  date?: string
-  seed?: string
-  pins: Pin[]
-  initial_budget: number
-  budget_remaining: number
-  solved_pins: Reveal[]
-  missed_districts: MissedDistrict[]
-  guess_history: ApiGuessHistoryEntry[]
-  status: 'in_progress' | 'finished'
-  state_source: 'anonymous' | 'account'
-}
-
-type Challenge = ChallengeResponse & {
-  mode: 'daily' | 'seeded'
-  id: string
-}
-
-type GuessResult = {
-  correct: boolean
-  solved_pin_index: number | null
-  distance_km: number | null
-  missed_district: MissedDistrict | null
-  budget_remaining: number
-  status: 'in_progress' | 'finished'
-  reveals: Reveal[]
-}
-
-type GiveUpResult = {
-  budget_remaining: number
-  status: 'finished'
-  reveals: Reveal[]
-}
-
-type LeaderboardEntry = {
-  rank: number
-  username: string
-  pins_solved: number
-  guesses_used: number
-  total_missed_distance_km: number
-  is_you: boolean
-}
-
-type Leaderboard = {
-  date: string
-  player_count: number
-  entries: LeaderboardEntry[]
-  context_entries: LeaderboardEntry[]
-  your_entry: LeaderboardEntry
-}
-
-type GuessHistoryEntry = {
-  districtId: number
-  districtName: string
-  correct: boolean
-  distanceKm: number | null
-  solvedPinIndex: number | null
-}
-
-type ApiGuessHistoryEntry = {
-  district_id: number
-  district_name: string
-  correct: boolean
-  distance_km: number | null
-  solved_pin_index: number | null
-}
-
-type Progress = {
-  date: string
-  budgetRemaining: number
-  solvedPinIndices: number[]
-  reveals: Reveal[]
-  missedDistricts: MissedDistrict[]
-  guessHistory: GuessHistoryEntry[]
-  status: 'in_progress' | 'finished'
-  finishReason: 'solved' | 'budget' | 'gave_up' | null
-}
-
-type Feedback = {
-  kind: 'correct' | 'miss' | 'error'
-  message: string
-}
-
-const requestedSeed = new URLSearchParams(window.location.search).get('seed')
 
 function phraseToSeed(phrase: string) {
   return phrase
@@ -129,262 +39,86 @@ function inviteUrl(seed: string) {
   return url.toString()
 }
 
-function storageKey(challenge: Challenge) {
-  return challenge.mode === 'daily'
-    ? `hamburg-whereabouts:${challenge.generation_version}:${challenge.id}`
-    : `hamburg-whereabouts:${challenge.generation_version}:seed:${challenge.id}`
-}
-
-function loadProgress(challenge: Challenge): Progress {
-  const initial: Progress = {
-    date: challenge.id,
-    budgetRemaining: challenge.initial_budget,
-    solvedPinIndices: [],
-    reveals: [],
-    missedDistricts: [],
-    guessHistory: [],
-    status: 'in_progress',
-    finishReason: null,
-  }
-  try {
-    const stored = localStorage.getItem(storageKey(challenge))
-    if (!stored) return initial
-    const parsed = JSON.parse(stored) as Partial<Progress>
-    if (
-      parsed.date !== challenge.id ||
-      typeof parsed.budgetRemaining !== 'number' ||
-      parsed.budgetRemaining < 0 ||
-      parsed.budgetRemaining > challenge.initial_budget ||
-      !Array.isArray(parsed.solvedPinIndices) ||
-      !Array.isArray(parsed.reveals)
-    ) {
-      return initial
-    }
-    return {
-      date: challenge.id,
-      budgetRemaining: parsed.budgetRemaining,
-      solvedPinIndices: parsed.solvedPinIndices,
-      reveals: parsed.reveals,
-      missedDistricts: Array.isArray(parsed.missedDistricts) ? parsed.missedDistricts : [],
-      guessHistory: Array.isArray(parsed.guessHistory) ? parsed.guessHistory : [],
-      status: parsed.status === 'finished' ? 'finished' : 'in_progress',
-      finishReason: parsed.finishReason === 'solved' || parsed.finishReason === 'budget' || parsed.finishReason === 'gave_up'
-        ? parsed.finishReason
-        : null,
-    }
-  } catch {
-    return initial
-  }
-}
-
-/** Select trusted Account progress or challenge-scoped anonymous browser progress. */
-function progressFromChallenge(challenge: Challenge): Progress {
-  if (challenge.mode === 'seeded' || challenge.state_source === 'anonymous') {
-    return loadProgress(challenge)
-  }
-  const solvedPinIndices = challenge.guess_history.flatMap((entry) => (
-    entry.correct && entry.solved_pin_index !== null ? [entry.solved_pin_index] : []
-  ))
-  return {
-    date: challenge.id,
-    budgetRemaining: challenge.budget_remaining,
-    solvedPinIndices,
-    reveals: challenge.solved_pins,
-    missedDistricts: challenge.missed_districts,
-    guessHistory: challenge.guess_history.map((entry) => ({
-      districtId: entry.district_id,
-      districtName: entry.district_name,
-      correct: entry.correct,
-      distanceKm: entry.distance_km,
-      solvedPinIndex: entry.solved_pin_index,
-    })),
-    status: challenge.status,
-    finishReason: challenge.status === 'finished'
-      ? solvedPinIndices.length === challenge.pins.length ? 'solved' : 'budget'
-      : null,
-  }
-}
-
-function mergeMissedDistricts(existing: MissedDistrict[], incoming: MissedDistrict) {
-  const byId = new Map(existing.map((district) => [district.district_id, district]))
-  byId.set(incoming.district_id, incoming)
-  return [...byId.values()]
-}
-
-function mergeReveals(existing: Reveal[], incoming: Reveal[]) {
-  const byIndex = new Map(existing.map((reveal) => [reveal.index, reveal]))
-  incoming.forEach((reveal) => byIndex.set(reveal.index, reveal))
-  return [...byIndex.values()].sort((a, b) => a.index - b.index)
-}
-
 /** Preserve the existing Daily Challenge behavior at its dedicated route. */
 function DailyApp({ onHome }: { onHome: () => void }) {
   const { t } = useTranslation()
-  const [screen, setScreen] = useState<'start' | 'game' | 'finished'>('start')
-  const [challenge, setChallenge] = useState<Challenge | null>(null)
-  const [districts, setDistricts] = useState<District[]>([])
-  const [progress, setProgress] = useState<Progress | null>(null)
+  const {
+    account,
+    error: accountStatusError,
+    clearError: clearAccountError,
+    openLogin: showLogin,
+    openRegistration: showRegistration,
+  } = useAccount()
+  const {
+    screen,
+    challenge,
+    districts,
+    progress,
+    feedback,
+    loading,
+    submitting,
+    error,
+    leaderboard,
+    leaderboardError,
+    setFeedback,
+    begin: beginWorkflow,
+    returnToStart: returnWorkflowToStart,
+    checkGuess: submitWorkflowGuess,
+    giveUp: giveUpWorkflow,
+    handleAuthenticated: continueAuthenticatedWorkflow,
+    loadLeaderboard,
+  } = useDailyChallenge(account)
   const [guess, setGuess] = useState('')
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
   const [confirmingGiveUp, setConfirmingGiveUp] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [account, setAccount] = useState<Account | null>(null)
-  const [accountError, setAccountError] = useState<string | null>(null)
-  const [loginOpen, setLoginOpen] = useState(false)
-  const [registrationOpen, setRegistrationOpen] = useState(false)
+  const [accountProgressError, setAccountProgressError] = useState<string | null>(null)
   const [shareLabel, setShareLabel] = useState<'copy' | 'copied' | 'failed'>('copy')
   const [shareStatus, setShareStatus] = useState<string | null>(null)
+  const [resultShareStatus, setResultShareStatus] = useState<string | null>(null)
   const [customPhrase, setCustomPhrase] = useState(requestedSeed ?? '')
   const [creatorError, setCreatorError] = useState<string | null>(null)
-  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
-  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
   const guessInputRef = useRef<HTMLInputElement>(null)
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
 
-
-  useEffect(() => {
-    let cancelled = false
-    const challengePath = requestedSeed
-      ? `/api/challenges/${encodeURIComponent(requestedSeed)}`
-      : '/api/daily'
-    Promise.all([
-      apiFetch<ChallengeResponse>(challengePath),
-      apiFetch<District[]>('/api/districts'),
-    ])
-      .then(([response, districtList]) => {
-        if (cancelled) return
-        const loadedChallenge: Challenge = requestedSeed
-          ? {
-              ...response,
-              mode: 'seeded',
-              id: requestedSeed,
-              missed_districts: [],
-              guess_history: [],
-              state_source: 'anonymous',
-            }
-          : { ...response, mode: 'daily', id: response.date ?? '' }
-        setChallenge(loadedChallenge)
-        setDistricts(districtList)
-        setProgress(progressFromChallenge(loadedChallenge))
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) {
-          setError(apiErrorMessage(reason, i18n.t.bind(i18n), 'daily.loadError'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (account && challenge?.mode === 'daily' && progress?.status === 'finished' && challenge.state_source === 'account') {
-      void loadLeaderboard(challenge.id)
-    }
-  }, [account, challenge?.id, challenge?.mode, challenge?.state_source, progress?.status])
-
   /** Open login without changing anonymous Daily Challenge state. */
   function openLogin() {
-    setAccountError(null)
-    setLoginOpen(true)
+    clearAccountError()
+    setAccountProgressError(null)
+    showLogin({
+      onAuthenticated: handleAuthenticated,
+      onClose: () => requestAnimationFrame(() => loginButtonRef.current?.focus()),
+    })
   }
-
-  /** Close login and return keyboard focus to its opener. */
-  function closeLogin() {
-    setLoginOpen(false)
-    requestAnimationFrame(() => loginButtonRef.current?.focus())
-  }
-
-  useEffect(() => {
-    let cancelled = false
-    apiFetch<Account>('/api/auth/me')
-      .then((currentAccount) => {
-        if (!cancelled) setAccount(currentAccount)
-      })
-      .catch((reason: unknown) => {
-        if (
-          !cancelled &&
-          !(reason instanceof ApiError && reason.status === 401)
-        ) {
-          setAccountError(i18n.t('common.accountStatusError'))
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   /** Open registration without changing anonymous Daily Challenge state. */
   function openRegistration() {
-    setAccountError(null)
-    setRegistrationOpen(true)
-  }
-
-  /** Close registration and return keyboard focus to its opener. */
-  function closeRegistration() {
-    setRegistrationOpen(false)
-    requestAnimationFrame(() => registrationButtonRef.current?.focus())
-  }
-
-  async function loadLeaderboard(date: string) {
-    try {
-      setLeaderboard(await apiFetch<Leaderboard>(`/api/leaderboard/${date}`))
-      setLeaderboardError(null)
-    } catch (reason) {
-      setLeaderboardError(reason instanceof Error ? reason.message : 'Could not load standings.')
-    }
+    clearAccountError()
+    setAccountProgressError(null)
+    showRegistration({
+      onAuthenticated: handleAuthenticated,
+      onClose: () => requestAnimationFrame(() => registrationButtonRef.current?.focus()),
+    })
   }
 
   /** Retain a new session, adopting a completed anonymous Daily where requested. */
   async function handleAuthenticated(authenticatedAccount: Account) {
-    setAccount(authenticatedAccount)
-    setAccountError(null)
-    if (challenge?.mode === 'seeded') return
+    setAccountProgressError(null)
     try {
-      if (challenge && progress?.status === 'finished' && challenge.state_source === 'anonymous') {
-        const response = await apiFetch<ChallengeResponse>('/api/daily/adopt', {
-          method: 'POST',
-          body: JSON.stringify({
-            challenge_date: challenge.id,
-            budget_remaining: progress.budgetRemaining,
-            solved_pin_indices: progress.solvedPinIndices,
-            guesses: progress.guessHistory.map((entry) => ({ district_id: entry.districtId })),
-          }),
-        })
-        const daily: Challenge = { ...response, mode: 'daily', id: response.date ?? '' }
-        setChallenge(daily)
-        setProgress(progressFromChallenge(daily))
-        await loadLeaderboard(daily.id)
-        return
-      }
-      const response = await apiFetch<ChallengeResponse>('/api/daily')
-      const daily: Challenge = { ...response, mode: 'daily', id: response.date ?? '' }
-      setChallenge(daily)
-      setProgress(progressFromChallenge(daily))
-      if (daily.status === 'finished') await loadLeaderboard(daily.id)
+      await continueAuthenticatedWorkflow(authenticatedAccount)
     } catch {
-      setAccountError(t('daily.accountProgressError'))
+      setAccountProgressError(t('daily.accountProgressError'))
     }
   }
 
   function begin() {
-    if (!progress) return
-    track(challenge?.mode === 'seeded' ? 'seeded_started' : 'daily_started', challenge?.mode === 'seeded' ? { seed: challenge.id } : {})
-    setScreen(progress.status === 'finished' ? 'finished' : 'game')
+    beginWorkflow()
     requestAnimationFrame(() => guessInputRef.current?.focus())
   }
 
   function returnToStart() {
-    setFeedback(null)
     setConfirmingGiveUp(false)
-    setScreen('start')
+    returnWorkflowToStart()
   }
 
   function createRandomChallenge() {
@@ -424,6 +158,36 @@ function DailyApp({ onHome }: { onHome: () => void }) {
     }
   }
 
+  async function copyResult(resultText: string, resultUrl: string) {
+    try {
+      await navigator.clipboard.writeText(`${resultText}\n${resultUrl}`)
+      setResultShareStatus(t('daily.resultCopied'))
+      track(challenge?.mode === 'seeded' ? 'seeded_result_shared' : 'daily_result_shared', { method: 'clipboard' })
+    } catch {
+      setResultShareStatus(t('daily.clipboardBlocked'))
+    }
+  }
+
+  async function shareResult(resultText: string, resultUrl: string) {
+    if (!challenge || !progress || progress.status !== 'finished') return
+    if (!navigator.share) {
+      await copyResult(resultText, resultUrl)
+      return
+    }
+    try {
+      await navigator.share({
+        title: 'Hamburg Whereabouts',
+        text: resultText,
+        url: resultUrl,
+      })
+      setResultShareStatus(t('daily.resultShared'))
+      track(challenge.mode === 'seeded' ? 'seeded_result_shared' : 'daily_result_shared', { method: 'native' })
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === 'AbortError') return
+      setResultShareStatus(t('daily.resultShareFailed'))
+    }
+  }
+
   function previewCustomPhrase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const seed = phraseToSeed(customPhrase)
@@ -442,159 +206,23 @@ function DailyApp({ onHome }: { onHome: () => void }) {
   }
 
   async function checkGuess(district: District) {
-    if (!challenge || !progress || submitting || progress.status === 'finished') return
-    if (progress.guessHistory.some((entry) => entry.districtId === district.id)) {
+    const duplicate = progress?.guessHistory.some((entry) => entry.districtId === district.id) ?? false
+    setConfirmingGiveUp(false)
+    const accepted = await submitWorkflowGuess(district)
+    if (accepted || duplicate) {
       setGuess('')
       setActiveSuggestionIndex(-1)
-      setConfirmingGiveUp(false)
-      setFeedback({ kind: 'error', message: t('daily.alreadyGuessed', { district: district.name }) })
-      requestAnimationFrame(() => guessInputRef.current?.focus())
-      return
     }
-
-    setSubmitting(true)
-    setConfirmingGiveUp(false)
-    setFeedback(null)
-    try {
-      const guessPath = challenge.mode === 'daily'
-        ? '/api/daily/guess'
-        : `/api/challenges/${encodeURIComponent(challenge.id)}/guess`
-      const body = challenge.mode === 'daily'
-        ? {
-            challenge_date: challenge.id,
-            guessed_district_id: district.id,
-            anonymous_state: {
-              budget_remaining: progress.budgetRemaining,
-              solved_pin_indices: progress.solvedPinIndices,
-            },
-          }
-        : {
-            guessed_district_id: district.id,
-            anonymous_state: {
-              budget_remaining: progress.budgetRemaining,
-              solved_pin_indices: progress.solvedPinIndices,
-            },
-          }
-      const result = await apiFetch<GuessResult>(guessPath, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      })
-      const nextSolved = result.solved_pin_index === null
-        ? progress.solvedPinIndices
-        : [...new Set([...progress.solvedPinIndices, result.solved_pin_index])]
-      const next: Progress = {
-        ...progress,
-        budgetRemaining: result.budget_remaining,
-        solvedPinIndices: nextSolved,
-        reveals: mergeReveals(progress.reveals, result.reveals),
-        missedDistricts: result.missed_district
-          ? mergeMissedDistricts(progress.missedDistricts, result.missed_district)
-          : progress.missedDistricts,
-        guessHistory: [
-          ...progress.guessHistory,
-          {
-            districtId: district.id,
-            districtName: district.name,
-            correct: result.correct,
-            distanceKm: result.distance_km,
-            solvedPinIndex: result.solved_pin_index,
-          },
-        ],
-        status: result.status,
-        finishReason: result.status === 'finished'
-          ? nextSolved.length === challenge.pins.length ? 'solved' : 'budget'
-          : null,
-      }
-      if (challenge.state_source === 'anonymous') {
-        localStorage.setItem(storageKey(challenge), JSON.stringify(next))
-      }
-      setProgress(next)
-      setGuess('')
-      setFeedback(
-        result.correct
-          ? { kind: 'correct', message: t('daily.found', { district: district.name }) }
-          : { kind: 'miss', message: t('daily.distance', { district: district.name, distance: new Intl.NumberFormat(activeLanguage(), { style: 'unit', unit: 'kilometer', maximumFractionDigits: 1 }).format(result.distance_km ?? 0) }) },
-      )
-      if (result.status === 'finished') {
-        track(challenge.mode === 'seeded' ? 'seeded_completed' : 'daily_completed', {
-          reason: next.finishReason ?? 'finished',
-          pins_solved: nextSolved.length,
-          guesses_spent: challenge.initial_budget - result.budget_remaining,
-          ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
-        })
-        setScreen('finished')
-        if (account && challenge.mode === 'daily') await loadLeaderboard(challenge.id)
-      }
-    } catch (reason) {
-      setFeedback({
-        kind: 'error',
-        message: apiErrorMessage(reason, t, 'daily.guessError'),
-      })
-    } finally {
-      setSubmitting(false)
-      requestAnimationFrame(() => guessInputRef.current?.focus())
-    }
+    requestAnimationFrame(() => guessInputRef.current?.focus())
   }
 
   async function giveUp() {
-    if (!challenge || !progress || submitting || progress.status === 'finished') return
     if (!confirmingGiveUp) {
       setConfirmingGiveUp(true)
       return
     }
-
-    setSubmitting(true)
-    setFeedback(null)
-    try {
-      const giveUpPath = challenge.mode === 'daily'
-        ? '/api/daily/give-up'
-        : `/api/challenges/${encodeURIComponent(challenge.id)}/give-up`
-      const body = challenge.mode === 'daily'
-        ? {
-            challenge_date: challenge.id,
-            anonymous_state: {
-              budget_remaining: progress.budgetRemaining,
-              solved_pin_indices: progress.solvedPinIndices,
-            },
-          }
-        : {
-            anonymous_state: {
-              budget_remaining: progress.budgetRemaining,
-              solved_pin_indices: progress.solvedPinIndices,
-            },
-          }
-      const result = await apiFetch<GiveUpResult>(giveUpPath, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      })
-      const next: Progress = {
-        ...progress,
-        budgetRemaining: result.budget_remaining,
-        reveals: mergeReveals(progress.reveals, result.reveals),
-        status: result.status,
-        finishReason: 'gave_up',
-      }
-      if (challenge.state_source === 'anonymous') {
-        localStorage.setItem(storageKey(challenge), JSON.stringify(next))
-      }
-      setProgress(next)
-      track(challenge.mode === 'seeded' ? 'seeded_completed' : 'daily_completed', {
-        reason: 'gave_up',
-        pins_solved: progress.solvedPinIndices.length,
-        guesses_spent: challenge.initial_budget - result.budget_remaining,
-        ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
-      })
-      setScreen('finished')
-      if (account && challenge.mode === 'daily') await loadLeaderboard(challenge.id)
-    } catch (reason) {
-      setFeedback({
-        kind: 'error',
-        message: apiErrorMessage(reason, t, 'daily.giveUpError'),
-      })
-    } finally {
-      setSubmitting(false)
-      setConfirmingGiveUp(false)
-    }
+    await giveUpWorkflow()
+    setConfirmingGiveUp(false)
   }
 
   function handleGuessChange(value: string) {
@@ -665,6 +293,34 @@ function DailyApp({ onHome }: { onHome: () => void }) {
   const guessesSpent = challenge && progress
     ? challenge.initial_budget - progress.budgetRemaining
     : 0
+  const resultDate = challenge?.date
+    ? new Intl.DateTimeFormat(activeLanguage(), {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date(`${challenge.date}T12:00:00`))
+    : ''
+  const resultUrl = challenge
+    ? challenge.mode === 'seeded'
+      ? inviteUrl(challenge.id)
+      : new URL('/daily', window.location.origin).toString()
+    : ''
+  const resultText = challenge && progress
+    ? resultShareText({
+        productName: 'Hamburg Whereabouts',
+        challengeLabel: challenge.mode === 'seeded'
+          ? t('daily.resultSharedMap')
+          : t('daily.resultDaily', { date: resultDate }),
+        score: t(progress.finishReason === 'gave_up' ? 'daily.resultScoreGaveUp' : 'daily.resultScore', {
+          solved: pinsSolved,
+          total: challenge.pins.length,
+          spent: guessesSpent,
+          budget: challenge.initial_budget,
+          count: guessesSpent,
+        }),
+        outcomeRow: pinOutcomeRow(challenge.pins.length, progress.solvedPinIndices),
+      })
+    : ''
   const normalizedGuess = guess.trim().toLocaleLowerCase('de')
   const suggestions = normalizedGuess.length === 0
     ? []
@@ -706,7 +362,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
               : t('daily.intro')}
           </p>
           {error ? <p className="notice notice--error">{error}</p> : null}
-          {accountError ? <p className="notice notice--error">{accountError}</p> : null}
+          {accountStatusError || accountProgressError ? <p className="notice notice--error">{accountStatusError ?? accountProgressError}</p> : null}
           {isSeeded ? (
             <>
               <form className="seed-form" onSubmit={previewCustomPhrase}>
@@ -911,11 +567,11 @@ function DailyApp({ onHome }: { onHome: () => void }) {
             </>
           ) : (
             <div className="result-block">
-              <div>
+              <div className="result-stat">
                 <span>{t('daily.pinsSolved')}</span>
                 <strong>{pinsSolved}<small>/5</small></strong>
               </div>
-              <div>
+              <div className="result-stat">
                 <span>{t('daily.guessesSpent')}</span>
                 <strong>{guessesSpent}<small>/10</small></strong>
               </div>
@@ -926,12 +582,23 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                   ? t('daily.seededRevealed')
                   : t('daily.dailyRevealed')}
               </p>
-              {!isSeeded && !account && challenge?.state_source === 'anonymous' ? (
-                <div className="account-actions">
-                  <p>Save this result to compare it with today’s players.</p>
-                  <button className="secondary-action" type="button" onClick={openLogin}>Log in and save result</button>
-                  <button className="secondary-action" type="button" onClick={openRegistration}>Create account and save result</button>
+              {challenge && progress ? (
+                <div className="result-share">
+                  <button className="result-share__action" type="button" onClick={() => void shareResult(resultText, resultUrl)}>
+                    <Share2 size={17} aria-hidden="true" />
+                    <span>{t('daily.shareResult')}</span>
+                  </button>
+                  {resultShareStatus ? <div className="result-share__status" role="status">{resultShareStatus}</div> : null}
                 </div>
+              ) : null}
+              {!isSeeded && !account && challenge?.state_source === 'anonymous' ? (
+                <section className="result-account" aria-label={t('daily.saveResult')}>
+                  <p>{t('daily.saveResultHelp')}</p>
+                  <div className="result-account__actions">
+                    <button type="button" onClick={openLogin}>{t('daily.loginSaveResult')}</button>
+                    <button type="button" onClick={openRegistration}>{t('daily.createAccountSaveResult')}</button>
+                  </div>
+                </section>
               ) : null}
               {!isSeeded && leaderboard ? (
                 <section className="leaderboard-summary" aria-labelledby="leaderboard-summary-title">
@@ -1005,16 +672,6 @@ function DailyApp({ onHome }: { onHome: () => void }) {
         </aside>
       )}
 
-      <RegisterDialog
-        open={registrationOpen}
-        onClose={closeRegistration}
-        onRegistered={handleAuthenticated}
-      />
-      <LoginDialog
-        open={loginOpen}
-        onClose={closeLogin}
-        onLoggedIn={handleAuthenticated}
-      />
     </main>
   )
 }
@@ -1065,7 +722,7 @@ function App() {
     content = <ModeHome onNavigate={navigate} />
   }
   return (
-    <>
+    <AccountProvider>
       {content}
       <AppMenu
         onAnalyticsSettings={() => setAnalyticsSettingsOpen(true)}
@@ -1075,7 +732,7 @@ function App() {
         settingsOpen={analyticsSettingsOpen}
         onSettingsClose={() => setAnalyticsSettingsOpen(false)}
       />
-    </>
+    </AccountProvider>
   )
 }
 

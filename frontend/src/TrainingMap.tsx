@@ -36,6 +36,7 @@ const HAMBURG_BOUNDS = L.latLngBounds(
   [53.39, 9.72],
   [53.75, 10.32],
 )
+const HAMBURG_VIEW_BOUNDS = HAMBURG_BOUNDS.pad(0.05)
 
 const BEZIRK_COLORS: Record<string, { border: string; fill: string }> = {
   Altona: { border: '#2457a6', fill: '#4f83d1' },
@@ -252,6 +253,8 @@ export function TrainingMap({
         zoom={10}
         minZoom={9}
         maxZoom={16}
+        maxBounds={HAMBURG_VIEW_BOUNDS}
+        maxBoundsViscosity={1}
         zoomControl={false}
         attributionControl
       >

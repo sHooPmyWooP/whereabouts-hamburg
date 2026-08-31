@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import os
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path as FilePath
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
@@ -9,34 +9,34 @@ from zoneinfo import ZoneInfo
 import yaml
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, selectinload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from analytics import admin_router
 from analytics import router as analytics_router
 from analytics_maintenance import run_retention
-from api_errors import ApiHTTPException
 from auth_routes import get_optional_account
 from auth_routes import router as auth_router
-from database import SessionLocal, engine, get_db
-from game import (
+from daily_challenge import (
     GENERATION_VERSION,
     INITIAL_BUDGET,
-    PIN_COUNT,
-    ChallengeGenerator,
-    DistrictCatalog,
-    evaluate_guess,
-    reveal,
+    AnonymousGameState,
+    DailyChallengeError,
+    DailyChallengeGames,
+    DailyChallengeSnapshot,
+    SubmittedGuess,
 )
-from models import Account, GameDailyDistricts, Guess
+from database import SessionLocal, engine, get_db
+from game import PIN_COUNT, ChallengeGenerator, DistrictCatalog
+from models import Account, GameDailyDistricts
 from training import create_training_router
 
 load_dotenv()
@@ -72,6 +72,7 @@ def load_fun_facts() -> dict[str, list[str]]:
 
 fun_facts = load_fun_facts()
 challenge_generator = ChallengeGenerator(catalog)
+daily_challenge_games = DailyChallengeGames(catalog, challenge_generator)
 
 app = FastAPI(
     title="Hamburg Whereabouts API",
@@ -135,6 +136,20 @@ def validation_error(_request: Request, error: RequestValidationError) -> JSONRe
     )
 
 
+@app.exception_handler(DailyChallengeError)
+def daily_challenge_error(
+    _request: Request, error: DailyChallengeError
+) -> JSONResponse:
+    """Render Daily Challenge policy failures at the HTTP seam."""
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "detail": error.detail,
+            "code": error.code or f"http.{error.status_code}",
+        },
+    )
+
+
 class SPAStaticFiles(StaticFiles):
     """Serve the client entry point for browser requests to SPA routes."""
 
@@ -194,8 +209,11 @@ class DistrictSummary(BaseModel):
     bezirk: str
 
 
-class ExploreDistrict(DistrictSummary):
+class MapDistrict(DistrictSummary):
     boundary: dict[str, Any]
+
+
+class ExploreDistrict(DistrictSummary):
     fun_facts: list[str]
 
 
@@ -216,6 +234,7 @@ class DailyResponse(BaseModel):
     guess_history: list[dict[str, Any]]
     status: Literal["in_progress", "finished"]
     state_source: Literal["anonymous", "account"]
+    finish_reason: Literal["solved", "budget", "gave_up"] | None
 
 
 class SeededChallengeResponse(BaseModel):
@@ -322,91 +341,6 @@ def current_challenge_date() -> date:
     return datetime.now(ZoneInfo("Europe/Berlin")).date()
 
 
-def get_or_create_account_game(
-    database: Session,
-    account_id: int,
-    challenge_date: date,
-) -> GameDailyDistricts:
-    """Load or create the Account's single Game for a challenge date."""
-    statement = (
-        select(GameDailyDistricts)
-        .options(selectinload(GameDailyDistricts.guesses))
-        .where(
-            GameDailyDistricts.account_id == account_id,
-            GameDailyDistricts.challenge_date == challenge_date,
-        )
-    )
-    game = database.scalar(statement)
-    if game is not None:
-        return game
-
-    game = GameDailyDistricts(
-        account_id=account_id,
-        challenge_date=challenge_date,
-        budget_remaining=INITIAL_BUDGET,
-        solved_pin_indices=[],
-        status="in_progress",
-    )
-    database.add(game)
-    try:
-        database.commit()
-    except IntegrityError:
-        database.rollback()
-        existing_game = database.scalar(statement)
-        if existing_game is None:
-            raise
-        return existing_game
-    database.refresh(game)
-    return game
-
-
-def game_reveals(
-    game: GameDailyDistricts, pins: list[Any]
-) -> list[dict[str, Any]]:
-    """Reconstruct only the Pin boundaries earned by the Account."""
-    solved_indices = set(game.solved_pin_indices)
-    if game.status == "finished":
-        return [reveal(pin) for pin in pins]
-    return [reveal(pin) for pin in pins if pin.index in solved_indices]
-
-
-def game_missed_districts(game: GameDailyDistricts) -> list[dict[str, Any]]:
-    """Reconstruct unique missed District boundaries from accepted Guesses."""
-    missed_by_id: dict[int, dict[str, Any]] = {}
-    for guess in game.guesses:
-        if guess.was_correct:
-            continue
-        district = catalog.by_id.get(guess.guessed_district_id)
-        if district is None:
-            continue
-        missed_by_id[district.id] = {
-            "district_id": district.id,
-            "district_name": district.name,
-            "boundary": district.boundary,
-            "distance_km": guess.distance_km,
-        }
-    return list(missed_by_id.values())
-
-
-def game_guess_history(game: GameDailyDistricts) -> list[dict[str, Any]]:
-    """Return accepted Account Guesses in submission order."""
-    history: list[dict[str, Any]] = []
-    for guess in game.guesses:
-        district = catalog.by_id.get(guess.guessed_district_id)
-        if district is None:
-            continue
-        history.append(
-            {
-                "district_id": district.id,
-                "district_name": district.name,
-                "correct": guess.was_correct,
-                "distance_km": guess.distance_km,
-                "solved_pin_index": guess.solved_pin_index,
-            }
-        )
-    return history
-
-
 def leaderboard_entries(database: Session, challenge_date: date, account_id: int) -> list[LeaderboardEntry]:
     """Build one deterministic, shared-rank table for a Daily Challenge."""
     games = database.scalars(
@@ -510,20 +444,62 @@ def list_districts() -> list[DistrictSummary]:
     ]
 
 
+@app.get("/api/map/districts/v1", response_model=list[MapDistrict])
+def map_districts(response: Response) -> list[MapDistrict]:
+    """Return versioned Stadtteil geometry shared by every map mode."""
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return [
+        MapDistrict(
+            id=district.id,
+            name=district.name,
+            bezirk=district.bezirk,
+            boundary=district.boundary,
+        )
+        for district in catalog.districts
+    ]
+
+
 @app.get("/api/explore/districts", response_model=list[ExploreDistrict])
 def explore_districts(response: Response) -> list[ExploreDistrict]:
-    """Return public Stadtteil geometry for the interactive explorer."""
+    """Return the lightweight facts used only by the interactive explorer."""
     response.headers["Cache-Control"] = "public, max-age=86400"
     return [
         ExploreDistrict(
             id=district.id,
             name=district.name,
             bezirk=district.bezirk,
-            boundary=district.boundary,
             fun_facts=fun_facts[district.name],
         )
         for district in catalog.districts
     ]
+
+
+def _anonymous_game_state(state: AnonymousState | None) -> AnonymousGameState | None:
+    if state is None:
+        return None
+    return AnonymousGameState(
+        budget_remaining=state.budget_remaining,
+        solved_pin_indices=tuple(state.solved_pin_indices),
+    )
+
+
+def _daily_response(snapshot: DailyChallengeSnapshot) -> DailyResponse:
+    return DailyResponse(
+        generation_version=GENERATION_VERSION,
+        date=snapshot.challenge_date,
+        pins=[
+            PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x)
+            for pin in snapshot.pins
+        ],
+        initial_budget=INITIAL_BUDGET,
+        budget_remaining=snapshot.budget_remaining,
+        solved_pins=snapshot.solved_pins,
+        missed_districts=snapshot.missed_districts,
+        guess_history=snapshot.guess_history,
+        status=snapshot.status,
+        state_source=snapshot.state_source,
+        finish_reason=snapshot.finish_reason,
+    )
 
 
 @app.get("/api/daily", response_model=DailyResponse)
@@ -532,26 +508,10 @@ def get_daily(
     account: Annotated[Account | None, Depends(get_optional_account)],
 ) -> DailyResponse:
     """Return public Pins plus identity-scoped Daily Challenge progress."""
-    challenge_date = current_challenge_date()
-    pins = challenge_generator.generate(challenge_date)
-    game = (
-        get_or_create_account_game(database, account.id, challenge_date)
-        if account is not None
-        else None
-    )
-    return DailyResponse(
-        generation_version=GENERATION_VERSION,
-        date=challenge_date,
-        pins=[
-            PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x) for pin in pins
-        ],
-        initial_budget=INITIAL_BUDGET,
-        budget_remaining=game.budget_remaining if game else INITIAL_BUDGET,
-        solved_pins=game_reveals(game, pins) if game else [],
-        missed_districts=game_missed_districts(game) if game else [],
-        guess_history=game_guess_history(game) if game else [],
-        status=game.status if game else "in_progress",
-        state_source="account" if game else "anonymous",
+    return _daily_response(
+        daily_challenge_games.daily_snapshot(
+            database, account, current_challenge_date()
+        )
     )
 
 
@@ -559,12 +519,13 @@ def get_daily(
 def get_seeded_challenge(
     seed: str = Path(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ) -> SeededChallengeResponse:
-    pins = challenge_generator.generate_seeded(seed)
+    snapshot = daily_challenge_games.seeded_snapshot(seed)
     return SeededChallengeResponse(
         generation_version=GENERATION_VERSION,
-        seed=seed,
+        seed=snapshot.seed,
         pins=[
-            PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x) for pin in pins
+            PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x)
+            for pin in snapshot.pins
         ],
         initial_budget=INITIAL_BUDGET,
         budget_remaining=INITIAL_BUDGET,
@@ -580,68 +541,16 @@ def adopt_anonymous_daily(
     account: Annotated[Account | None, Depends(get_optional_account)],
 ) -> DailyResponse:
     """Persist a completed anonymous result after an explicit account sign-in."""
-    if account is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if request.challenge_date != current_challenge_date():
-        raise HTTPException(status_code=400, detail="Only today's Daily Challenge can be adopted")
-    existing = database.scalar(select(GameDailyDistricts.id).where(
-        GameDailyDistricts.account_id == account.id,
-        GameDailyDistricts.challenge_date == request.challenge_date,
-    ))
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="This account already has today's Daily Challenge")
-
-    pins = challenge_generator.generate(request.challenge_date)
-    budget = INITIAL_BUDGET
-    solved: set[int] = set()
-    adopted_guesses: list[tuple[int, Any]] = []
-    for submitted in request.guesses:
-        district = catalog.by_id.get(submitted.district_id)
-        if district is None:
-            raise HTTPException(status_code=422, detail="Anonymous result contains an unknown district")
-        if budget <= 0 or len(solved) == PIN_COUNT:
-            raise HTTPException(status_code=422, detail="Anonymous result contains guesses after completion")
-        result = evaluate_guess(pins, district, solved, budget)
-        adopted_guesses.append((district.id, result))
-        budget = result.budget_remaining
-        if result.solved_pin_index is not None:
-            solved.add(result.solved_pin_index)
-
-    if budget != request.budget_remaining or sorted(solved) != sorted(request.solved_pin_indices):
-        raise HTTPException(status_code=422, detail="Anonymous result does not match its guesses")
-
-    game = GameDailyDistricts(
-        account_id=account.id,
+    snapshot = daily_challenge_games.adopt_anonymous(
+        database=database,
+        account=account,
         challenge_date=request.challenge_date,
-        budget_remaining=budget,
-        solved_pin_indices=sorted(solved),
-        status="finished",
-        finished_at=datetime.now(UTC),
+        today=current_challenge_date(),
+        budget_remaining=request.budget_remaining,
+        solved_pin_indices=request.solved_pin_indices,
+        guesses=[SubmittedGuess(district_id=item.district_id) for item in request.guesses],
     )
-    database.add(game)
-    for district_id, result in adopted_guesses:
-        database.add(Guess(
-            game=game,
-            guessed_district_id=district_id,
-            was_correct=result.correct,
-            solved_pin_index=result.solved_pin_index,
-            distance_km=result.distance_km,
-            distance_meters=result.distance_meters,
-        ))
-    database.commit()
-    database.refresh(game)
-    return DailyResponse(
-        generation_version=GENERATION_VERSION,
-        date=request.challenge_date,
-        pins=[PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x) for pin in pins],
-        initial_budget=INITIAL_BUDGET,
-        budget_remaining=game.budget_remaining,
-        solved_pins=game_reveals(game, pins),
-        missed_districts=game_missed_districts(game),
-        guess_history=game_guess_history(game),
-        status="finished",
-        state_source="account",
-    )
+    return _daily_response(snapshot)
 
 
 @app.post("/api/daily/guess", response_model=GuessResponse)
@@ -651,81 +560,14 @@ def submit_guess(
     account: Annotated[Account | None, Depends(get_optional_account)],
 ) -> GuessResponse:
     """Evaluate a Guess using Account state or validated anonymous state."""
-    today = current_challenge_date()
-    if request.challenge_date != today:
-        raise HTTPException(status_code=400, detail="Only today's Daily Challenge is active")
-
-    guessed_district = catalog.by_id.get(request.guessed_district_id)
-    if guessed_district is None:
-        raise HTTPException(status_code=404, detail="District not found")
-
-    pins = challenge_generator.generate(today)
-    if account is not None:
-        get_or_create_account_game(database, account.id, today)
-        game = database.scalar(
-            select(GameDailyDistricts)
-            .where(
-                GameDailyDistricts.account_id == account.id,
-                GameDailyDistricts.challenge_date == today,
-            )
-            .with_for_update()
-        )
-        if game is None:
-            raise HTTPException(status_code=409, detail="Daily Challenge state is unavailable")
-        if game.status == "finished" or game.budget_remaining <= 0:
-            raise HTTPException(status_code=409, detail="Today's Daily Challenge is already finished")
-        previous_guess = database.scalar(
-            select(Guess.id)
-            .where(
-                Guess.game_id == game.id,
-                Guess.guessed_district_id == guessed_district.id,
-            )
-            .limit(1)
-        )
-        if previous_guess is not None:
-            raise ApiHTTPException(
-                status_code=409,
-                code="daily_already_guessed",
-                detail="This Stadtteil has already been guessed",
-            )
-        solved_pin_indices = set(game.solved_pin_indices)
-        budget_remaining = game.budget_remaining
-    else:
-        if request.anonymous_state is None:
-            raise HTTPException(status_code=422, detail="Anonymous state is required")
-        game = None
-        solved_pin_indices = set(request.anonymous_state.solved_pin_indices)
-        budget_remaining = request.anonymous_state.budget_remaining
-
-    result = evaluate_guess(
-        pins=pins,
-        guessed_district=guessed_district,
-        solved_pin_indices=solved_pin_indices,
-        budget_remaining=budget_remaining,
+    result = daily_challenge_games.guess_daily(
+        database=database,
+        account=account,
+        challenge_date=request.challenge_date,
+        today=current_challenge_date(),
+        guessed_district_id=request.guessed_district_id,
+        anonymous_state=_anonymous_game_state(request.anonymous_state),
     )
-    if game is not None:
-        if result.solved_pin_index is not None:
-            game.solved_pin_indices = sorted(
-                {*game.solved_pin_indices, result.solved_pin_index}
-            )
-        game.budget_remaining = result.budget_remaining
-        game.status = result.status
-        if result.status == "finished":
-            game.finished_at = datetime.now(UTC)
-            game.finish_reason = (
-                "solved" if len(game.solved_pin_indices) == PIN_COUNT else "budget"
-            )
-        database.add(
-            Guess(
-                game=game,
-                guessed_district_id=guessed_district.id,
-                was_correct=result.correct,
-                solved_pin_index=result.solved_pin_index,
-                distance_km=result.distance_km,
-                distance_meters=result.distance_meters,
-            )
-        )
-        database.commit()
     return GuessResponse(**result.__dict__)
 
 
@@ -736,39 +578,17 @@ def give_up_daily(
     account: Annotated[Account | None, Depends(get_optional_account)],
 ) -> GiveUpResponse:
     """Finish today's Daily Challenge without trusting Account browser state."""
-    today = current_challenge_date()
-    if request.challenge_date != today:
-        raise HTTPException(status_code=400, detail="Only today's Daily Challenge is active")
-
-    if account is not None:
-        get_or_create_account_game(database, account.id, today)
-        game = database.scalar(
-            select(GameDailyDistricts)
-            .where(
-                GameDailyDistricts.account_id == account.id,
-                GameDailyDistricts.challenge_date == today,
-            )
-            .with_for_update()
-        )
-        if game is None:
-            raise HTTPException(status_code=409, detail="Daily Challenge state is unavailable")
-        if game.status == "finished":
-            raise HTTPException(status_code=409, detail="Today's Daily Challenge is already finished")
-
-        game.status = "finished"
-        game.finished_at = datetime.now(UTC)
-        game.finish_reason = "gave_up"
-        database.commit()
-        budget_remaining = game.budget_remaining
-    else:
-        if request.anonymous_state is None:
-            raise HTTPException(status_code=422, detail="Anonymous state is required")
-        budget_remaining = request.anonymous_state.budget_remaining
-
+    result = daily_challenge_games.give_up_daily(
+        database=database,
+        account=account,
+        challenge_date=request.challenge_date,
+        today=current_challenge_date(),
+        anonymous_state=_anonymous_game_state(request.anonymous_state),
+    )
     return GiveUpResponse(
-        budget_remaining=budget_remaining,
+        budget_remaining=result.budget_remaining,
         status="finished",
-        reveals=[reveal(pin) for pin in challenge_generator.generate(today)],
+        reveals=result.reveals,
     )
 
 
@@ -777,16 +597,12 @@ def submit_seeded_guess(
     request: SeededGuessRequest,
     seed: str = Path(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ) -> GuessResponse:
-    guessed_district = catalog.by_id.get(request.guessed_district_id)
-    if guessed_district is None:
-        raise HTTPException(status_code=404, detail="District not found")
-
-    pins = challenge_generator.generate_seeded(seed)
-    result = evaluate_guess(
-        pins=pins,
-        guessed_district=guessed_district,
-        solved_pin_indices=set(request.anonymous_state.solved_pin_indices),
-        budget_remaining=request.anonymous_state.budget_remaining,
+    anonymous_state = _anonymous_game_state(request.anonymous_state)
+    assert anonymous_state is not None
+    result = daily_challenge_games.guess_seeded(
+        seed=seed,
+        guessed_district_id=request.guessed_district_id,
+        anonymous_state=anonymous_state,
     )
     return GuessResponse(**result.__dict__)
 
@@ -796,10 +612,13 @@ def give_up_seeded_challenge(
     request: SeededGiveUpRequest,
     seed: str = Path(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ) -> GiveUpResponse:
+    anonymous_state = _anonymous_game_state(request.anonymous_state)
+    assert anonymous_state is not None
+    result = daily_challenge_games.give_up_seeded(seed, anonymous_state)
     return GiveUpResponse(
-        budget_remaining=request.anonymous_state.budget_remaining,
+        budget_remaining=result.budget_remaining,
         status="finished",
-        reveals=[reveal(pin) for pin in challenge_generator.generate_seeded(seed)],
+        reveals=result.reveals,
     )
 
 if os.path.isdir(STATIC_DIR):

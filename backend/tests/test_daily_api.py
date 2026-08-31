@@ -5,7 +5,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from game import PIN_BORDER_CLEARANCE_MAX_METERS, PIN_BORDER_CLEARANCE_METERS
-from main import SPAStaticFiles, app, catalog, challenge_generator, current_challenge_date
+from main import (
+    SPAStaticFiles,
+    app,
+    catalog,
+    challenge_generator,
+    current_challenge_date,
+)
 from models import Account, GameDailyDistricts, Guess
 
 client = TestClient(app)
@@ -35,6 +41,7 @@ def test_daily_is_deterministic_and_does_not_leak_answers() -> None:
     assert first.json()["generation_version"] == "daily-districts-v2"
     assert len(first.json()["pins"]) == 5
     assert first.json()["solved_pins"] == []
+    assert first.json()["finish_reason"] is None
     serialized = first.text.lower()
     assert "district_name" not in serialized
     assert "boundary" not in serialized
@@ -95,8 +102,6 @@ def test_miss_returns_distance_and_spends_budget() -> None:
     assert result["budget_remaining"] == 9
     assert result["distance_km"] >= 0
     assert result["missed_district"]["district_id"] == miss.id
-    assert result["missed_district"]["district_name"] == miss.name
-    assert result["missed_district"]["distance_km"] == result["distance_km"]
     assert result["missed_district"]["boundary"]["type"] == "MultiPolygon"
     assert result["reveals"] == []
 
@@ -216,6 +221,7 @@ def test_authenticated_progress_is_restored_after_login(client: TestClient) -> N
         }
     ]
     assert restored.json()["missed_districts"][0]["district_id"] == miss.id
+    assert restored.json()["missed_districts"][0]["boundary"]["type"] == "MultiPolygon"
 
 
 def test_authenticated_finished_game_cannot_be_replayed(client: TestClient) -> None:
@@ -256,6 +262,7 @@ def test_authenticated_finished_game_cannot_be_replayed(client: TestClient) -> N
     assert login.status_code == 200
     assert restored.status_code == 200
     assert restored.json()["status"] == "finished"
+    assert restored.json()["finish_reason"] == "budget"
     assert restored.json()["budget_remaining"] == 0
     assert len(restored.json()["solved_pins"]) == 5
     assert len(restored.json()["guess_history"]) == 10
@@ -308,6 +315,7 @@ def test_authenticated_give_up_is_restored_and_cannot_be_replayed(client: TestCl
     assert login.status_code == 200
     assert restored.status_code == 200
     assert restored.json()["status"] == "finished"
+    assert restored.json()["finish_reason"] == "gave_up"
     assert restored.json()["budget_remaining"] == 10
     assert len(restored.json()["solved_pins"]) == 5
     assert replay.status_code == 409
@@ -315,6 +323,28 @@ def test_authenticated_give_up_is_restored_and_cannot_be_replayed(client: TestCl
         "detail": "Today's Daily Challenge is already finished",
         "code": "http.409",
     }
+
+
+def test_adopted_anonymous_give_up_retains_finish_reason(client: TestClient) -> None:
+    client.post(
+        "/api/auth/register",
+        json={"username": "AdoptedPlayer", "password": "valid-password"},
+    )
+    challenge_date = current_challenge_date()
+
+    adopted = client.post(
+        "/api/daily/adopt",
+        json={
+            "challenge_date": challenge_date.isoformat(),
+            "budget_remaining": 10,
+            "solved_pin_indices": [],
+            "guesses": [],
+        },
+    )
+
+    assert adopted.status_code == 200
+    assert adopted.json()["status"] == "finished"
+    assert adopted.json()["finish_reason"] == "gave_up"
 
 
 def test_seeded_challenge_is_deterministic_and_isolated() -> None:

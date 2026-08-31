@@ -3,25 +3,19 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, SyntheticEvent } from 'react'
 import { UserPlus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, apiErrorMessage, apiFetch } from './api'
-import { track } from './analytics'
-
-export type Account = {
-  id: number
-  username: string
-}
+import { ApiError, apiErrorMessage } from './api'
 
 type RegisterDialogProps = {
   open: boolean
   onClose: () => void
-  onRegistered: (account: Account) => void
+  onSubmit: (credentials: { username: string; password: string }) => Promise<void>
 }
 
 /** Render an accessible modal that creates and signs in an Account. */
 export function RegisterDialog({
   open,
   onClose,
-  onRegistered,
+  onSubmit,
 }: RegisterDialogProps) {
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -71,14 +65,9 @@ export function RegisterDialog({
 
     setSubmitting(true)
     try {
-      const account = await apiFetch<Account>('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      })
+      await onSubmit({ username, password })
       setPassword('')
       setPasswordConfirmation('')
-      track('account_authenticated', { mode: 'registered' })
-      onRegistered(account)
       onClose()
     } catch (reason) {
       setError(

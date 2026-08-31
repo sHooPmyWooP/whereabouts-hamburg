@@ -64,6 +64,19 @@ def test_event_id_is_idempotent_and_seed_is_hmaced(client: TestClient) -> None:
         assert len(str(event.properties["seed_fingerprint"])) == 24
 
 
+def test_result_share_event_accepts_only_non_sensitive_method(client: TestClient) -> None:
+    payload = event_payload(str(uuid4()), "daily_result_shared")
+    payload["properties"] = {"method": "native"}
+
+    response = client.post("/api/analytics/events", json=payload)
+
+    assert response.status_code == 202
+    with TestSession() as database:
+        event = database.scalar(select(AnalyticsEvent))
+        assert event is not None
+        assert event.properties == {"method": "native"}
+
+
 def test_forget_removes_raw_events_and_identity_link(client: TestClient) -> None:
     visitor_id = str(uuid4())
     register(client)

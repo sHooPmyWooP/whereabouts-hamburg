@@ -7,13 +7,18 @@ import { useTranslation } from 'react-i18next'
 import { apiFetch } from './api'
 import i18n from './i18n'
 
-type ExploreDistrict = {
+type MapDistrict = {
   id: number
   name: string
   bezirk: string
   boundary: GeoJsonObject
+}
+
+type ExploreDistrict = MapDistrict & {
   fun_facts: string[]
 }
+
+type ExploreDistrictDetails = Omit<ExploreDistrict, 'boundary'>
 
 type ExploreAppProps = {
   onHome: () => void
@@ -23,6 +28,7 @@ const HAMBURG_BOUNDS = L.latLngBounds(
   [53.39, 9.72],
   [53.75, 10.32],
 )
+const HAMBURG_VIEW_BOUNDS = HAMBURG_BOUNDS.pad(0.05)
 
 function ExploreBoundary({
   district,
@@ -88,9 +94,17 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
 
   useEffect(() => {
     let cancelled = false
-    apiFetch<ExploreDistrict[]>('/api/explore/districts')
-      .then((result) => {
-        if (!cancelled) setDistricts(result)
+    Promise.all([
+      apiFetch<MapDistrict[]>('/api/map/districts/v1'),
+      apiFetch<ExploreDistrictDetails[]>('/api/explore/districts'),
+    ])
+      .then(([mapDistricts, details]) => {
+        if (cancelled) return
+        const detailsById = new Map(details.map((district) => [district.id, district]))
+        setDistricts(mapDistricts.map((district) => ({
+          ...district,
+          fun_facts: detailsById.get(district.id)?.fun_facts ?? [],
+        })))
       })
       .catch(() => {
         if (!cancelled) setError(i18n.t('explore.loadError'))
@@ -121,6 +135,8 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
           boundsOptions={{ padding: [24, 24] }}
           minZoom={9}
           maxZoom={16}
+          maxBounds={HAMBURG_VIEW_BOUNDS}
+          maxBoundsViscosity={1}
           zoomControl={false}
           attributionControl
         >

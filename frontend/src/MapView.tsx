@@ -45,6 +45,7 @@ const HAMBURG_BOUNDS = L.latLngBounds(
   [53.39, 9.72],
   [53.75, 10.32],
 )
+const HAMBURG_VIEW_BOUNDS = HAMBURG_BOUNDS.pad(0.05)
 
 function MapViewport({
   pins,
@@ -105,6 +106,8 @@ export function MapView({
         zoom={10}
         minZoom={9}
         maxZoom={16}
+        maxBounds={HAMBURG_VIEW_BOUNDS}
+        maxBoundsViscosity={1}
         zoomControl={false}
         attributionControl
       >

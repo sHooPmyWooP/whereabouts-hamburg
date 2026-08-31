@@ -40,6 +40,13 @@ describe('translation resources', () => {
     expect(new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(1.5)).toBe('1.5')
     await i18n.changeLanguage('de')
     expect(i18n.t('daily.foundInGuesses', { solved: 1, total: 5, count: 2 })).toContain('2 Tipps')
+    expect(i18n.t('daily.resultScoreGaveUp', {
+      solved: 3,
+      total: 5,
+      spent: 8,
+      budget: 10,
+      count: 8,
+    })).toBe('3/5 Pins · Aufgegeben nach 8/10 Tipps')
     expect(new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(1.5)).toBe('1,5')
   })
 
