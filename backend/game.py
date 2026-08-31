@@ -48,6 +48,7 @@ class GuessResult:
     correct: bool
     solved_pin_index: int | None
     distance_km: float | None
+    distance_meters: float | None
     missed_district: dict[str, Any] | None
     budget_remaining: int
     status: str
@@ -184,16 +185,14 @@ def evaluate_guess(
         next_solved.add(matching_pin.index)
         reveals.append(reveal(matching_pin))
         distance_km = None
+        distance_meters = None
         missed_district = None
     else:
-        distance_km = round(
-            min(
-                guessed_district.geometry_metric.boundary.distance(pin.point_metric)
-                for pin in unsolved
-            )
-            / 1000,
-            1,
+        distance_meters = min(
+            guessed_district.geometry_metric.boundary.distance(pin.point_metric)
+            for pin in unsolved
         )
+        distance_km = round(distance_meters / 1000, 1)
         missed_district = {
             "district_id": guessed_district.id,
             "district_name": guessed_district.name,
@@ -210,6 +209,7 @@ def evaluate_guess(
         correct=matching_pin is not None,
         solved_pin_index=matching_pin.index if matching_pin else None,
         distance_km=distance_km,
+        distance_meters=distance_meters,
         missed_district=missed_district,
         budget_remaining=next_budget,
         status="finished" if finished else "in_progress",

@@ -107,6 +107,9 @@ class Guess(Base):
     was_correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
     solved_pin_index: Mapped[int | None] = mapped_column(Integer)
     distance_km: Mapped[float | None] = mapped_column(Float)
+    # Exact metric value for leaderboard aggregation; distance_km remains the
+    # player-facing, one-decimal value retained for existing history.
+    distance_meters: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

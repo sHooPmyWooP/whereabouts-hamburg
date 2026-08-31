@@ -12,6 +12,7 @@ type ExploreDistrict = {
   name: string
   bezirk: string
   boundary: GeoJsonObject
+  fun_facts: string[]
 }
 
 type ExploreAppProps = {
@@ -81,6 +82,7 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
   const { t } = useTranslation()
   const [districts, setDistricts] = useState<ExploreDistrict[]>([])
   const [selected, setSelected] = useState<ExploreDistrict | null>(null)
+  const [selectedFunFact, setSelectedFunFact] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
 
@@ -97,6 +99,17 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
       cancelled = true
     }
   }, [])
+
+  function selectDistrict(district: ExploreDistrict) {
+    const facts = district.fun_facts
+    setSelected(district)
+    setSelectedFunFact(facts[Math.floor(Math.random() * facts.length)] ?? null)
+  }
+
+  function clearSelectedDistrict() {
+    setSelected(null)
+    setSelectedFunFact(null)
+  }
 
   const unselectedDistricts = districts.filter((district) => district.id !== selected?.id)
 
@@ -117,10 +130,10 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           />
           {unselectedDistricts.map((district) => (
-            <ExploreBoundary key={district.id} district={district} selected={false} onSelect={setSelected} />
+            <ExploreBoundary key={district.id} district={district} selected={false} onSelect={selectDistrict} />
           ))}
           {selected ? (
-            <ExploreBoundary key={selected.id} district={selected} selected onSelect={setSelected} />
+            <ExploreBoundary key={selected.id} district={selected} selected onSelect={selectDistrict} />
           ) : null}
         </MapContainer>
       </div>
@@ -138,12 +151,13 @@ export function ExploreApp({ onHome }: ExploreAppProps) {
           <p className="notice notice--error" role="alert">{error}</p>
         ) : selected ? (
           <>
-            <button className="explore-card__close" type="button" onClick={() => setSelected(null)} aria-label={t('explore.clear')}>
+            <button className="explore-card__close" type="button" onClick={clearSelectedDistrict} aria-label={t('explore.clear')}>
               <X size={17} aria-hidden="true" />
             </button>
             <p className="eyebrow">{t('explore.district')}</p>
             <h1>{selected.name}</h1>
-            <p>{selected.bezirk}</p>
+            <p className="explore-card__bezirk">{selected.bezirk}</p>
+            {selectedFunFact ? <p className="explore-card__fact">{selectedFunFact}</p> : null}
           </>
         ) : (
           <>

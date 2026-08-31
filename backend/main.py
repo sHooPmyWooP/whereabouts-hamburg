@@ -2,21 +2,23 @@ import asyncio
 import contextlib
 import os
 from datetime import UTC, date, datetime
+from pathlib import Path as FilePath
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
+import yaml
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, selectinload
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from analytics import admin_router
 from analytics import router as analytics_router
@@ -46,6 +48,29 @@ STATIC_DIR = os.path.abspath(
 )
 
 catalog = DistrictCatalog.load()
+
+
+def load_fun_facts() -> dict[str, list[str]]:
+    """Load and validate the display facts bundled with the district catalog."""
+    facts_path = FilePath(__file__).resolve().parent.parent / "data" / "hamburg-stadtteil-fun-facts.yaml"
+    with facts_path.open(encoding="utf-8") as source:
+        payload = yaml.safe_load(source)
+
+    facts = payload.get("facts") if isinstance(payload, dict) else None
+    expected_names = {district.name for district in catalog.districts}
+    if not isinstance(facts, dict) or set(facts) != expected_names:
+        raise ValueError("Fun facts must contain exactly one entry for every Stadtteil")
+    if any(
+        not isinstance(items, list)
+        or not 1 <= len(items) <= 5
+        or any(not isinstance(item, str) or not item.strip() for item in items)
+        for items in facts.values()
+    ):
+        raise ValueError("Each Stadtteil needs between one and five non-empty fun facts")
+    return facts
+
+
+fun_facts = load_fun_facts()
 challenge_generator = ChallengeGenerator(catalog)
 
 app = FastAPI(
@@ -110,6 +135,22 @@ def validation_error(_request: Request, error: RequestValidationError) -> JSONRe
     )
 
 
+class SPAStaticFiles(StaticFiles):
+    """Serve the client entry point for browser requests to SPA routes."""
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as error:
+            if (
+                error.status_code != 404
+                or path.startswith("api/")
+                or os.path.splitext(path)[1]
+            ):
+                raise
+        return await super().get_response("index.html", scope)
+
+
 @app.exception_handler(OperationalError)
 def database_unavailable(
     _request: Request, _error: OperationalError
@@ -155,6 +196,7 @@ class DistrictSummary(BaseModel):
 
 class ExploreDistrict(DistrictSummary):
     boundary: dict[str, Any]
+    fun_facts: list[str]
 
 
 class PublicPin(BaseModel):
@@ -214,7 +256,7 @@ class SeededGuessRequest(BaseModel):
 
 class DailyGiveUpRequest(BaseModel):
     challenge_date: date
-    anonymous_state: AnonymousState
+    anonymous_state: AnonymousState | None = None
 
 
 class SeededGiveUpRequest(BaseModel):
@@ -235,6 +277,44 @@ class GiveUpResponse(BaseModel):
     budget_remaining: int
     status: Literal["finished"]
     reveals: list[dict[str, Any]]
+
+
+class AdoptAnonymousGuess(BaseModel):
+    district_id: int
+
+
+class AdoptAnonymousDailyRequest(BaseModel):
+    challenge_date: date
+    budget_remaining: int = Field(ge=0, le=INITIAL_BUDGET)
+    solved_pin_indices: list[int] = Field(default_factory=list, max_length=PIN_COUNT)
+    guesses: list[AdoptAnonymousGuess] = Field(default_factory=list, max_length=INITIAL_BUDGET)
+
+    @model_validator(mode="after")
+    def validate_indices(self) -> "AdoptAnonymousDailyRequest":
+        if len(self.solved_pin_indices) != len(set(self.solved_pin_indices)):
+            raise ValueError("Solved Pin indices must be unique")
+        if any(index < 0 or index >= PIN_COUNT for index in self.solved_pin_indices):
+            raise ValueError("Solved Pin index is out of range")
+        return self
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    username: str
+    pins_solved: int
+    guesses_used: int
+    total_missed_distance_km: float
+    is_you: bool
+
+
+class LeaderboardResponse(BaseModel):
+    date: date
+    player_count: int
+    entries: list[LeaderboardEntry]
+    context_entries: list[LeaderboardEntry]
+    your_entry: LeaderboardEntry
+    offset: int
+    limit: int
 
 
 def current_challenge_date() -> date:
@@ -327,6 +407,101 @@ def game_guess_history(game: GameDailyDistricts) -> list[dict[str, Any]]:
     return history
 
 
+def leaderboard_entries(database: Session, challenge_date: date, account_id: int) -> list[LeaderboardEntry]:
+    """Build one deterministic, shared-rank table for a Daily Challenge."""
+    games = database.scalars(
+        select(GameDailyDistricts)
+        .options(selectinload(GameDailyDistricts.guesses), selectinload(GameDailyDistricts.account))
+        .where(
+            GameDailyDistricts.challenge_date == challenge_date,
+            GameDailyDistricts.status == "finished",
+        )
+    ).all()
+    scored: list[tuple[GameDailyDistricts, int, int, float]] = []
+    for game in games:
+        pins_solved = len(game.solved_pin_indices)
+        guesses_used = INITIAL_BUDGET - game.budget_remaining
+        # Legacy rows have only a one-decimal kilometre value. New rows retain
+        # the exact metric distance, while both display at one decimal km.
+        total_meters = sum(
+            guess.distance_meters
+            if guess.distance_meters is not None
+            else (guess.distance_km or 0) * 1000
+            for guess in game.guesses
+            if not guess.was_correct
+        )
+        scored.append((game, pins_solved, guesses_used, total_meters))
+
+    scored.sort(key=lambda item: (-item[1], item[2], item[3], item[0].account.username.casefold()))
+    entries: list[LeaderboardEntry] = []
+    previous_score: tuple[int, int, float] | None = None
+    rank = 0
+    for position, (game, pins_solved, guesses_used, total_meters) in enumerate(scored, start=1):
+        score = (pins_solved, guesses_used, total_meters)
+        if score != previous_score:
+            rank = position
+            previous_score = score
+        entries.append(LeaderboardEntry(
+            rank=rank,
+            username=game.account.username,
+            pins_solved=pins_solved,
+            guesses_used=guesses_used,
+            total_missed_distance_km=round(total_meters / 1000, 1),
+            is_you=game.account_id == account_id,
+        ))
+    return entries
+
+
+@app.get("/api/leaderboard/dates", response_model=list[date])
+def leaderboard_dates(
+    database: Annotated[Session, Depends(get_db)],
+    account: Annotated[Account, Depends(get_optional_account)],
+) -> list[date]:
+    if account is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return list(database.scalars(
+        select(GameDailyDistricts.challenge_date)
+        .where(GameDailyDistricts.account_id == account.id, GameDailyDistricts.status == "finished")
+        .order_by(GameDailyDistricts.challenge_date.desc())
+    ))
+
+
+@app.get("/api/leaderboard/{challenge_date}", response_model=LeaderboardResponse)
+def get_leaderboard(
+    challenge_date: date,
+    database: Annotated[Session, Depends(get_db)],
+    account: Annotated[Account, Depends(get_optional_account)],
+    offset: int = 0,
+    limit: int = 50,
+) -> LeaderboardResponse:
+    if account is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    played = database.scalar(select(GameDailyDistricts.id).where(
+        GameDailyDistricts.account_id == account.id,
+        GameDailyDistricts.challenge_date == challenge_date,
+        GameDailyDistricts.status == "finished",
+    ))
+    if played is None:
+        raise HTTPException(status_code=403, detail="Finish this Daily Challenge to view its leaderboard")
+    if offset < 0 or limit < 1 or limit > 50:
+        raise HTTPException(status_code=422, detail="offset and limit are out of range")
+    entries = leaderboard_entries(database, challenge_date, account.id)
+    your_index = next(index for index, entry in enumerate(entries) if entry.is_you)
+    yours = entries[your_index]
+    context = entries[:3] + entries[max(0, your_index - 2):your_index + 3]
+    context_by_name = {entry.username: entry for entry in context}
+    context = sorted(context_by_name.values(), key=lambda entry: (entry.rank, entry.username.casefold()))
+    return LeaderboardResponse(
+        date=challenge_date,
+        player_count=len(entries),
+        entries=entries[offset:offset + limit],
+        context_entries=context,
+        your_entry=yours,
+        offset=offset,
+        limit=limit,
+    )
+
+
 @app.get("/api/districts", response_model=list[DistrictSummary])
 def list_districts() -> list[DistrictSummary]:
     return [
@@ -345,6 +520,7 @@ def explore_districts(response: Response) -> list[ExploreDistrict]:
             name=district.name,
             bezirk=district.bezirk,
             boundary=district.boundary,
+            fun_facts=fun_facts[district.name],
         )
         for district in catalog.districts
     ]
@@ -394,6 +570,77 @@ def get_seeded_challenge(
         budget_remaining=INITIAL_BUDGET,
         solved_pins=[],
         status="in_progress",
+    )
+
+
+@app.post("/api/daily/adopt", response_model=DailyResponse)
+def adopt_anonymous_daily(
+    request: AdoptAnonymousDailyRequest,
+    database: Annotated[Session, Depends(get_db)],
+    account: Annotated[Account | None, Depends(get_optional_account)],
+) -> DailyResponse:
+    """Persist a completed anonymous result after an explicit account sign-in."""
+    if account is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if request.challenge_date != current_challenge_date():
+        raise HTTPException(status_code=400, detail="Only today's Daily Challenge can be adopted")
+    existing = database.scalar(select(GameDailyDistricts.id).where(
+        GameDailyDistricts.account_id == account.id,
+        GameDailyDistricts.challenge_date == request.challenge_date,
+    ))
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="This account already has today's Daily Challenge")
+
+    pins = challenge_generator.generate(request.challenge_date)
+    budget = INITIAL_BUDGET
+    solved: set[int] = set()
+    adopted_guesses: list[tuple[int, Any]] = []
+    for submitted in request.guesses:
+        district = catalog.by_id.get(submitted.district_id)
+        if district is None:
+            raise HTTPException(status_code=422, detail="Anonymous result contains an unknown district")
+        if budget <= 0 or len(solved) == PIN_COUNT:
+            raise HTTPException(status_code=422, detail="Anonymous result contains guesses after completion")
+        result = evaluate_guess(pins, district, solved, budget)
+        adopted_guesses.append((district.id, result))
+        budget = result.budget_remaining
+        if result.solved_pin_index is not None:
+            solved.add(result.solved_pin_index)
+
+    if budget != request.budget_remaining or sorted(solved) != sorted(request.solved_pin_indices):
+        raise HTTPException(status_code=422, detail="Anonymous result does not match its guesses")
+
+    game = GameDailyDistricts(
+        account_id=account.id,
+        challenge_date=request.challenge_date,
+        budget_remaining=budget,
+        solved_pin_indices=sorted(solved),
+        status="finished",
+        finished_at=datetime.now(UTC),
+    )
+    database.add(game)
+    for district_id, result in adopted_guesses:
+        database.add(Guess(
+            game=game,
+            guessed_district_id=district_id,
+            was_correct=result.correct,
+            solved_pin_index=result.solved_pin_index,
+            distance_km=result.distance_km,
+            distance_meters=result.distance_meters,
+        ))
+    database.commit()
+    database.refresh(game)
+    return DailyResponse(
+        generation_version=GENERATION_VERSION,
+        date=request.challenge_date,
+        pins=[PublicPin(index=pin.index, lat=pin.point.y, lng=pin.point.x) for pin in pins],
+        initial_budget=INITIAL_BUDGET,
+        budget_remaining=game.budget_remaining,
+        solved_pins=game_reveals(game, pins),
+        missed_districts=game_missed_districts(game),
+        guess_history=game_guess_history(game),
+        status="finished",
+        state_source="account",
     )
 
 
@@ -475,6 +722,7 @@ def submit_guess(
                 was_correct=result.correct,
                 solved_pin_index=result.solved_pin_index,
                 distance_km=result.distance_km,
+                distance_meters=result.distance_meters,
             )
         )
         database.commit()
@@ -487,19 +735,35 @@ def give_up_daily(
     database: Annotated[Session, Depends(get_db)],
     account: Annotated[Account | None, Depends(get_optional_account)],
 ) -> GiveUpResponse:
+    """Finish today's Daily Challenge without trusting Account browser state."""
     today = current_challenge_date()
     if request.challenge_date != today:
         raise HTTPException(status_code=400, detail="Only today's Daily Challenge is active")
 
-    budget_remaining = request.anonymous_state.budget_remaining
     if account is not None:
-        game = get_or_create_account_game(database, account.id, today)
-        if game.status != "finished":
-            game.status = "finished"
-            game.finished_at = datetime.now(UTC)
-            game.finish_reason = "gave_up"
-            database.commit()
+        get_or_create_account_game(database, account.id, today)
+        game = database.scalar(
+            select(GameDailyDistricts)
+            .where(
+                GameDailyDistricts.account_id == account.id,
+                GameDailyDistricts.challenge_date == today,
+            )
+            .with_for_update()
+        )
+        if game is None:
+            raise HTTPException(status_code=409, detail="Daily Challenge state is unavailable")
+        if game.status == "finished":
+            raise HTTPException(status_code=409, detail="Today's Daily Challenge is already finished")
+
+        game.status = "finished"
+        game.finished_at = datetime.now(UTC)
+        game.finish_reason = "gave_up"
+        database.commit()
         budget_remaining = game.budget_remaining
+    else:
+        if request.anonymous_state is None:
+            raise HTTPException(status_code=422, detail="Anonymous state is required")
+        budget_remaining = request.anonymous_state.budget_remaining
 
     return GiveUpResponse(
         budget_remaining=budget_remaining,
@@ -539,4 +803,4 @@ def give_up_seeded_challenge(
     )
 
 if os.path.isdir(STATIC_DIR):
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
+    app.mount("/", SPAStaticFiles(directory=STATIC_DIR, html=True), name="frontend")

@@ -930,6 +930,87 @@
   line-height: 1.6;
 }
 
+.leaderboard-summary {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid #b8dccc;
+  border-radius: 8px;
+  background: #f2faf6;
+}
+
+.leaderboard-summary__hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 1px 12px;
+  padding: 13px 15px 11px;
+  color: #28604d;
+  background: #dff2e9;
+}
+
+.leaderboard-summary__hero > span {
+  grid-column: 1 / -1;
+  color: #427260;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.leaderboard-summary__hero strong {
+  color: #075f47;
+  font: 600 43px/.85 'Newsreader Variable', serif;
+}
+
+.leaderboard-summary__hero p {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #427260;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.leaderboard-summary__score {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 10px 8px;
+  border-bottom: 1px solid #cfe6da;
+}
+
+.leaderboard-summary__score span {
+  display: grid;
+  gap: 2px;
+  padding: 0 7px;
+  color: #687d72;
+  font-size: 9px;
+  text-align: center;
+}
+
+.leaderboard-summary__score span + span { border-left: 1px solid #cfe6da; }
+.leaderboard-summary__score strong { color: #183e31; font-size: 13px; }
+
+.leaderboard-summary__entries { margin: 0; padding: 4px 10px; list-style: none; }
+.leaderboard-summary__entry {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 29px;
+  gap: 5px;
+  border-bottom: 1px solid #dfede6;
+  color: #40554b;
+  font-size: 10px;
+}
+.leaderboard-summary__entry:last-child { border-bottom: 0; }
+.leaderboard-summary__entry > strong { color: #5f756a; font-size: 10px; }
+.leaderboard-summary__entry > span { overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-summary__entry small { color: #71867b; font-size: 9px; white-space: nowrap; }
+.leaderboard-summary__entry--you { margin: 2px -4px; padding: 0 4px; border-radius: 4px; background: #cdebdc; color: #075f47; }
+.leaderboard-summary__entry--you > strong, .leaderboard-summary__entry--you small { color: #075f47; }
+.leaderboard-summary__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 9px 10px 10px; }
+.leaderboard-summary__actions .panel-secondary-action { min-height: 32px; font-size: 10px; }
+
 .result-actions {
   display: grid;
   grid-column: 1 / -1;
@@ -2278,6 +2359,31 @@
   color: #68736e;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.explore-card__bezirk {
+  margin: 8px 0 0;
+  color: #68736e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.explore-card__fact {
+  margin: 18px 0 0 !important;
+  padding: 12px 0 0;
+  color: #33443d !important;
+  border-top: 1px solid #d8e2dc;
+  font: 600 14px/1.55 'Manrope Variable', sans-serif !important;
+}
+
+.explore-card__fact::before {
+  content: 'Fun fact';
+  display: block;
+  margin-bottom: 4px;
+  color: #168460;
+  font: 800 10px/1.2 'Manrope Variable', sans-serif;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
 }
 
 .explore-card__close {

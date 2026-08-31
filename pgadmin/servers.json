@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Whereabouts Hamburg",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "whereabouts_hamburg",
+      "Username": "whereabouts",
+      "SSLMode": "prefer"
+    }
+  }
+}

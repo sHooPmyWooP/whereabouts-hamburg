@@ -10,6 +10,7 @@ import {
   LogIn,
   LogOut,
   MapPinned,
+  Trophy,
   UserPlus,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -130,6 +131,11 @@ export function ModeHome({ onNavigate }: ModeHomeProps) {
             <span className="mode-option__icon"><MapPinned aria-hidden="true" /></span>
             <span className="mode-option__copy"><strong>{t('home.explore')}</strong><small>{t('home.exploreHelp')}</small></span>
             <ArrowRight size={20} aria-hidden="true" />
+          </button>
+          <button className="mode-option mode-option--training" type="button" onClick={() => onNavigate('/leaderboard')}>
+            <span className="mode-option__icon"><Trophy aria-hidden="true" /></span>
+            <span className="mode-option__copy"><strong>Leaderboard</strong><small>Compare your completed Daily games.</small></span>
+            {account ? <ArrowRight size={20} aria-hidden="true" /> : <LockKeyhole size={19} aria-label="Sign in required" />}
           </button>
         </div>
         <div className="mode-account">

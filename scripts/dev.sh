@@ -58,6 +58,17 @@ fi
 configured_database_url="${DATABASE_URL:-$(
   sed -n 's/^DATABASE_URL=//p' "$root_dir/backend/.env" | tail -n 1
 )}"
+# Existing local .env files predate DATABASE_URL in some checkouts. Fall back
+# to the shipped development configuration instead of failing during migrations.
+if [ -z "$configured_database_url" ]; then
+  configured_database_url="$(
+    sed -n 's/^DATABASE_URL=//p' "$root_dir/backend/.env.example" | tail -n 1
+  )"
+fi
+if [ -z "$configured_database_url" ]; then
+  echo "DATABASE_URL is required in backend/.env." >&2
+  exit 1
+fi
 
 # The example URL uses the dev-container service name. When running directly
 # on the host, provide an isolated PostgreSQL container on a localhost port.
@@ -74,9 +85,10 @@ if [[ "$configured_database_url" == *"@postgres:"* ]] && ! (
 
   dev_database_port="${DEV_DATABASE_PORT:-55432}"
   docker compose -f "$root_dir/compose.dev.yaml" up -d --wait postgres
-  export DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:${dev_database_port}/whereabouts_hamburg"
+  configured_database_url="postgresql+psycopg://postgres:postgres@127.0.0.1:${dev_database_port}/whereabouts_hamburg"
   echo "Database: postgresql://127.0.0.1:${dev_database_port}/whereabouts_hamburg"
 fi
+export DATABASE_URL="$configured_database_url"
 
 # Keep the development schema current before accepting API requests.
 (cd "$root_dir/backend" && "$uv_command" run alembic upgrade head)

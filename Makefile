@@ -9,7 +9,7 @@ DEV_DATABASE_URL  ?= postgresql+psycopg://postgres:postgres@127.0.0.1:$(DEV_DATA
 
 .PHONY: help install install-backend install-frontend dev dev-backend dev-frontend up \
         build test test-backend lint lint-backend lint-frontend format clean \
-        promote-admin-dev promote-admin-prd
+        promote-admin-dev promote-admin-prd seed-leaderboard-demo seed-leaderboard-demo-live
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -41,7 +41,7 @@ promote-admin-dev: ## Promote a development Account: make promote-admin-dev USER
 
 promote-admin-prd: ## Promote a production Account: make promote-admin-prd USERNAME=name
 	@test -n "$(USERNAME)" || (echo "USERNAME is required, for example: make promote-admin-prd USERNAME=david" >&2; exit 2)
-	docker compose exec -T app uv run python admin_cli.py promote "$(USERNAME)"
+	docker compose exec -T app python admin_cli.py promote "$(USERNAME)"
 
 build: ## Build the production frontend
 	cd $(FRONTEND) && $(NPM) run build
@@ -61,6 +61,13 @@ lint-frontend: ## Lint frontend TypeScript
 
 format: ## Format backend Python
 	cd $(BACKEND) && $(UV) run ruff format .
+
+seed-leaderboard-demo: ## Seed example accounts and finished games in the development database
+	cd $(BACKEND) && DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:$(DEV_DATABASE_PORT)/whereabouts_hamburg $(UV) run alembic upgrade head
+	cd $(BACKEND) && DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:$(DEV_DATABASE_PORT)/whereabouts_hamburg $(UV) run seed_leaderboard_demo.py
+
+seed-leaderboard-demo-live: ## Seed example standings in the running production Compose app
+	docker compose exec -T app python seed_leaderboard_demo.py
 
 clean: ## Remove generated artifacts and caches
 	rm -rf $(FRONTEND)/dist $(FRONTEND)/node_modules/.vite

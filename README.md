@@ -61,9 +61,10 @@ The production stack runs the application and PostgreSQL on one Docker host. Pos
    cp .env.example .env
    openssl rand -hex 32       # POSTGRES_PASSWORD
    openssl rand -base64 48    # SESSION_SECRET
+   openssl rand -hex 32       # PGADMIN_DEFAULT_PASSWORD
    ```
 
-   Put the generated values in `.env` and keep that file out of version control. The database password must be URL-safe because it is embedded in `DATABASE_URL`; the hex command above guarantees that.
+   Put the generated values in `.env` and keep that file out of version control. The database password must be URL-safe because it is embedded in `DATABASE_URL`; the hex command above guarantees that. Set `PGADMIN_DEFAULT_EMAIL` to the pgAdmin login email.
 3. Build and start the stack:
 
    ```bash
@@ -74,6 +75,16 @@ The production stack runs the application and PostgreSQL on one Docker host. Pos
 The application is available at `http://<server>:8000` by default. Set `APP_PORT` in `.env` to use another host port. Production also requires `PRIVACY_CONTACT_EMAIL`, which is displayed in Analytics Settings.
 
 For an internet-facing deployment, put an HTTPS reverse proxy such as Caddy, Traefik, or Nginx in front of the application. Keep `SESSION_COOKIE_SECURE=true`. If the proxy runs on the same host, set `APP_BIND_ADDRESS=127.0.0.1` so the application port is not exposed directly on the LAN. For direct HTTP-only LAN access, set `SESSION_COOKIE_SECURE=false`.
+
+### pgAdmin access
+
+The stack includes pgAdmin, bound only to the Docker host loopback interface at port 5050. From a trusted machine, create an SSH tunnel:
+
+```bash
+ssh -L 5050:localhost:5050 <user>@<server>
+```
+
+Open `http://localhost:5050` and sign in with `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` from the server's `.env`. The default `Whereabouts Hamburg` server is preconfigured; enter `POSTGRES_PASSWORD` when pgAdmin asks to connect. If changing the default `POSTGRES_DB` or `POSTGRES_USER`, update [`pgadmin/servers.json`](pgadmin/servers.json) to match. Do not expose ports 5050 or 5432 publicly.
 
 ### Operations
 

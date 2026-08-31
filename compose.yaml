@@ -32,9 +32,29 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
 
+  pgadmin:
+    image: dpage/pgadmin4:9.17
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Expose only on the Docker host so pgAdmin can connect through an SSH tunnel.
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-whereabouts_hamburg}
       POSTGRES_USER: ${POSTGRES_USER:-whereabouts}
@@ -52,4 +72,5 @@ services:
     stop_grace_period: 1m
 
 volumes:
+  pgadmin-data:
   postgres-data:

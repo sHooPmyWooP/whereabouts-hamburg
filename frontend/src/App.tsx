@@ -9,6 +9,7 @@ import { AnalyticsPrivacy } from './AnalyticsPrivacy'
 import { AppMenu } from './AppMenu'
 import { ExploreApp } from './ExploreApp'
 import { LoginDialog } from './LoginDialog'
+import { LeaderboardApp } from './LeaderboardApp'
 import type { MissedDistrict, Pin, Reveal } from './MapView'
 import { MapView } from './MapView'
 import { ModeHome } from './ModeHome'
@@ -58,6 +59,23 @@ type GiveUpResult = {
   budget_remaining: number
   status: 'finished'
   reveals: Reveal[]
+}
+
+type LeaderboardEntry = {
+  rank: number
+  username: string
+  pins_solved: number
+  guesses_used: number
+  total_missed_distance_km: number
+  is_you: boolean
+}
+
+type Leaderboard = {
+  date: string
+  player_count: number
+  entries: LeaderboardEntry[]
+  context_entries: LeaderboardEntry[]
+  your_entry: LeaderboardEntry
 }
 
 type GuessHistoryEntry = {
@@ -221,6 +239,8 @@ function DailyApp({ onHome }: { onHome: () => void }) {
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const [customPhrase, setCustomPhrase] = useState(requestedSeed ?? '')
   const [creatorError, setCreatorError] = useState<string | null>(null)
+  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
   const guessInputRef = useRef<HTMLInputElement>(null)
   const loginButtonRef = useRef<HTMLButtonElement>(null)
   const registrationButtonRef = useRef<HTMLButtonElement>(null)
@@ -263,6 +283,12 @@ function DailyApp({ onHome }: { onHome: () => void }) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (account && challenge?.mode === 'daily' && progress?.status === 'finished' && challenge.state_source === 'account') {
+      void loadLeaderboard(challenge.id)
+    }
+  }, [account, challenge?.id, challenge?.mode, challenge?.state_source, progress?.status])
 
   /** Open login without changing anonymous Daily Challenge state. */
   function openLogin() {
@@ -307,20 +333,42 @@ function DailyApp({ onHome }: { onHome: () => void }) {
     requestAnimationFrame(() => registrationButtonRef.current?.focus())
   }
 
-  /** Retain a new session and replace browser progress with Account progress. */
+  async function loadLeaderboard(date: string) {
+    try {
+      setLeaderboard(await apiFetch<Leaderboard>(`/api/leaderboard/${date}`))
+      setLeaderboardError(null)
+    } catch (reason) {
+      setLeaderboardError(reason instanceof Error ? reason.message : 'Could not load standings.')
+    }
+  }
+
+  /** Retain a new session, adopting a completed anonymous Daily where requested. */
   async function handleAuthenticated(authenticatedAccount: Account) {
     setAccount(authenticatedAccount)
     setAccountError(null)
     if (challenge?.mode === 'seeded') return
     try {
-      const response = await apiFetch<ChallengeResponse>('/api/daily')
-      const daily: Challenge = {
-        ...response,
-        mode: 'daily',
-        id: response.date ?? '',
+      if (challenge && progress?.status === 'finished' && challenge.state_source === 'anonymous') {
+        const response = await apiFetch<ChallengeResponse>('/api/daily/adopt', {
+          method: 'POST',
+          body: JSON.stringify({
+            challenge_date: challenge.id,
+            budget_remaining: progress.budgetRemaining,
+            solved_pin_indices: progress.solvedPinIndices,
+            guesses: progress.guessHistory.map((entry) => ({ district_id: entry.districtId })),
+          }),
+        })
+        const daily: Challenge = { ...response, mode: 'daily', id: response.date ?? '' }
+        setChallenge(daily)
+        setProgress(progressFromChallenge(daily))
+        await loadLeaderboard(daily.id)
+        return
       }
+      const response = await apiFetch<ChallengeResponse>('/api/daily')
+      const daily: Challenge = { ...response, mode: 'daily', id: response.date ?? '' }
       setChallenge(daily)
       setProgress(progressFromChallenge(daily))
+      if (daily.status === 'finished') await loadLeaderboard(daily.id)
     } catch {
       setAccountError(t('daily.accountProgressError'))
     }
@@ -475,6 +523,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
           ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
         })
         setScreen('finished')
+        if (account && challenge.mode === 'daily') await loadLeaderboard(challenge.id)
       }
     } catch (reason) {
       setFeedback({
@@ -525,7 +574,9 @@ function DailyApp({ onHome }: { onHome: () => void }) {
         status: result.status,
         finishReason: 'gave_up',
       }
-      localStorage.setItem(storageKey(challenge), JSON.stringify(next))
+      if (challenge.state_source === 'anonymous') {
+        localStorage.setItem(storageKey(challenge), JSON.stringify(next))
+      }
       setProgress(next)
       track(challenge.mode === 'seeded' ? 'seeded_completed' : 'daily_completed', {
         reason: 'gave_up',
@@ -534,6 +585,7 @@ function DailyApp({ onHome }: { onHome: () => void }) {
         ...(challenge.mode === 'seeded' ? { seed: challenge.id } : {}),
       })
       setScreen('finished')
+      if (account && challenge.mode === 'daily') await loadLeaderboard(challenge.id)
     } catch (reason) {
       setFeedback({
         kind: 'error',
@@ -874,6 +926,37 @@ function DailyApp({ onHome }: { onHome: () => void }) {
                   ? t('daily.seededRevealed')
                   : t('daily.dailyRevealed')}
               </p>
+              {!isSeeded && !account && challenge?.state_source === 'anonymous' ? (
+                <div className="account-actions">
+                  <p>Save this result to compare it with today’s players.</p>
+                  <button className="secondary-action" type="button" onClick={openLogin}>Log in and save result</button>
+                  <button className="secondary-action" type="button" onClick={openRegistration}>Create account and save result</button>
+                </div>
+              ) : null}
+              {!isSeeded && leaderboard ? (
+                <section className="leaderboard-summary" aria-labelledby="leaderboard-summary-title">
+                  <div className="leaderboard-summary__hero">
+                    <span>Today’s standings</span>
+                    <strong id="leaderboard-summary-title">#{leaderboard.your_entry.rank}</strong>
+                    <p>of {leaderboard.player_count} completed players</p>
+                  </div>
+                  <div className="leaderboard-summary__score">
+                    <span><strong>{leaderboard.your_entry.pins_solved}/5</strong> pins</span>
+                    <span><strong>{leaderboard.your_entry.guesses_used}</strong> guesses</span>
+                    <span><strong>{leaderboard.your_entry.total_missed_distance_km.toFixed(1)} km</strong> missed</span>
+                  </div>
+                  <ol className="leaderboard-summary__entries">{leaderboard.context_entries.map((entry) => (
+                    <li className={entry.is_you ? 'leaderboard-summary__entry leaderboard-summary__entry--you' : 'leaderboard-summary__entry'} key={entry.username}>
+                      <strong>#{entry.rank}</strong><span>{entry.is_you ? 'You' : entry.username}</span><small>{entry.pins_solved}/5 · {entry.guesses_used} · {entry.total_missed_distance_km.toFixed(1)} km</small>
+                    </li>
+                  ))}</ol>
+                  <div className="leaderboard-summary__actions">
+                    <button className="panel-secondary-action" type="button" onClick={() => void loadLeaderboard(leaderboard.date)}>Refresh</button>
+                    <a className="panel-secondary-action" href="/leaderboard">Past days</a>
+                  </div>
+                  {leaderboardError ? <p className="notice notice--error">{leaderboardError}</p> : null}
+                </section>
+              ) : null}
               <div className="result-actions">
                 <button className="primary-action" type="button" onClick={createRandomChallenge}>
                   <span>{t('daily.newGame')}</span>
@@ -971,6 +1054,7 @@ function App() {
   let content
   if (path === '/daily') content = <DailyApp onHome={() => navigate('/')} />
   else if (path === '/explore') content = <ExploreApp onHome={() => navigate('/')} />
+  else if (path === '/leaderboard') content = <LeaderboardApp onHome={() => navigate('/')} />
   else if (path === '/training') {
     content = <TrainingApp onHome={() => navigate('/')} onNavigate={navigate} />
   } else if (path === '/training/progress') {

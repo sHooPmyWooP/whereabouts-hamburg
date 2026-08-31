@@ -1,0 +1,305 @@
+# Short, display-ready facts keyed by the Stadtteil names in hamburg-stadtteile.geojson.
+# Each Stadtteil has one to five facts; order is not a ranking.
+facts:
+  Altona-Altstadt:
+    - "Altona war bis 1937 eine selbstständige preußische Großstadt."
+    - "Der Fischmarkt findet hier seit 1703 sonntagmorgens statt."
+  Altona-Nord:
+    - "Der Bahnhof Altona wurde 1979 nach Altona-Nord verlegt."
+    - "Auf dem ehemaligen Güterbahnhofsgelände entsteht das Quartier Neue Mitte Altona."
+  Bahrenfeld:
+    - "In Bahrenfeld liegt mit dem Volksparkstadion die Heimstätte des HSV."
+    - "Der Volkspark wurde in den 1920er Jahren nach Plänen von Otto Linne angelegt."
+  Blankenese:
+    - "Das Treppenviertel von Blankenese führt mit tausenden Stufen hinunter zur Elbe."
+    - "Die Elbe prägt Blankenese mit Strand, Anleger und Blick auf vorbeiziehende Schiffe."
+  Groß Flottbek:
+    - "Der Loki-Schmidt-Garten in Groß Flottbek gehört zur Universität Hamburg."
+    - "Der Botanische Garten zeigt Pflanzen aus verschiedenen Klimazonen."
+  Iserbrook:
+    - "Iserbrook entstand erst 1951 als eigener Hamburger Stadtteil."
+  Lurup:
+    - "Der Name Lurup geht vermutlich auf einen Landwirt namens Lurup zurück."
+    - "Der Luruper Hauptstraße folgt teilweise einer alten Verbindung nach Schleswig-Holstein."
+  Nienstedten:
+    - "Nienstedten ist ein ehemaliges Elbfischerdorf mit einer Kirche aus dem 18. Jahrhundert."
+    - "Der Hirschpark in Nienstedten bietet freien Blick auf die Elbe."
+  Osdorf:
+    - "Der Osdorfer Born ist eine große Wohnsiedlung aus den 1960er und 1970er Jahren."
+    - "Der Loki-Schmidt-Garten liegt direkt an der Grenze zu Groß Flottbek."
+  Othmarschen:
+    - "In Othmarschen steht der Jenischpark, einer der größten Landschaftsparks Hamburgs."
+    - "Das ehemalige Landhaus Jenisch beherbergt heute ein Museum."
+  Ottensen:
+    - "Ottensen war im 19. Jahrhundert ein wichtiger Industriestandort vor den Toren Altonas."
+    - "Die Fabrik in Ottensen ist seit 1971 ein wichtiger unabhängiger Kulturort."
+  Rissen:
+    - "Rissen grenzt direkt an das Naturschutzgebiet Wittenbergen und die Elbe."
+    - "Der Falkensteiner Strand ist einer der naturbelassensten Elbstrände Hamburgs."
+  Sternschanze:
+    - "Die Rote Flora in der Sternschanze war ursprünglich ein Theaterbau von 1888."
+    - "Der Schanzenpark wird vom ehemaligen Wasserturm überragt."
+  Sülldorf:
+    - "Sülldorf bewahrt mit seinen Bauernhöfen einen dörflichen Charakter im Hamburger Westen."
+    - "Die S-Bahn-Linie S1 hält am Bahnhof Sülldorf."
+  Allermöhe:
+    - "Allermöhe liegt in den Vier- und Marschlanden, Hamburgs großem Gemüseanbaugebiet."
+    - "Die Dove Elbe ist hier ein beliebtes Revier für Rudern und Kanusport."
+  Altengamme:
+    - "Altengamme ist Hamburgs flächenmäßig größter Stadtteil."
+    - "Die St.-Nicolai-Kirche ist eines der Wahrzeichen der Vierlande."
+  Bergedorf:
+    - "Bergedorf besaß bis 1868 zusammen mit Lübeck eine eigene gemeinsame Verwaltung."
+    - "Das Bergedorfer Schloss ist das einzige erhaltene Schloss im Hamburger Stadtgebiet."
+  Billwerder:
+    - "Billwerder gehört zu den fruchtbaren Marschlandschaften im Südosten Hamburgs."
+    - "Der Stadtteil wird von der Bahnstrecke nach Berlin durchquert."
+  Curslack:
+    - "Curslack ist besonders für seinen Gemüse- und Blumenanbau bekannt."
+    - "Die Curslacker Kirche wurde im 16. Jahrhundert im Stil der Backsteingotik erbaut."
+  Kirchwerder:
+    - "Die St.-Severini-Kirche in Kirchwerder prägt das Elbmarschdorf seit dem Mittelalter."
+    - "Kirchwerder ist über 20 Quadratkilometer groß und dennoch dünn besiedelt."
+  Lohbrügge:
+    - "Lohbrügge wurde erst 1937 Teil Hamburgs."
+    - "Der S-Bahnhof Bergedorf verbindet Lohbrügge schnell mit der Hamburger Innenstadt."
+  Moorfleet:
+    - "Moorfleet war einst ein Moor- und Marschgebiet, das durch Entwässerung kultiviert wurde."
+    - "Der Dove-Elbe-Bereich in Moorfleet war Austragungsort von Ruderwettbewerben."
+  Neuallermöhe:
+    - "Neuallermöhe ist ein junger Stadtteil, dessen Wohngebiete von vielen Wasserläufen durchzogen sind."
+    - "Viele Wohnhäuser in Neuallermöhe besitzen einen direkten Zugang zum Wasser."
+  Neuengamme:
+    - "Die KZ-Gedenkstätte Neuengamme erinnert am historischen Lagerort an die Opfer des Nationalsozialismus."
+    - "Neuengamme liegt in den Vier- und Marschlanden an der Dove Elbe."
+  Ochsenwerder:
+    - "Ochsenwerder liegt auf einer Elbinsel und ist bis heute stark landwirtschaftlich geprägt."
+    - "Die Ochsenwerder Landscheide trennt Teile der Elbmarsch voneinander."
+  Reitbrook:
+    - "Reitbrook ist mit nur wenigen hundert Einwohnern einer der kleinsten Stadtteile Hamburgs."
+  Spadenland:
+    - "Spadenland ist ein ländlicher Stadtteil in den Vier- und Marschlanden."
+  Tatenberg:
+    - "Tatenberg liegt zwischen Dove Elbe und Norderelbe."
+    - "Der Ruderverein an der Dove Elbe macht Tatenberg zu einem bekannten Wassersportort."
+  Eidelstedt:
+    - "Eidelstedt erhielt 1965 einen Anschluss an die Hamburger S-Bahn."
+    - "Die A7 verläuft am westlichen Rand des Stadtteils."
+  Eimsbüttel:
+    - "Der Isebekkanal verbindet Eimsbüttel mit dem Alsterkanalnetz."
+    - "Der Wochenmarkt am Grindel liegt nur wenige Schritte von der Stadtteilgrenze entfernt."
+  Harvestehude:
+    - "Die Alsterufer in Harvestehude gehören zu Hamburgs beliebtesten Spazierwegen."
+    - "Der Fernsehmoderator John Jahr ließ hier die Alsterarkaden-artige Alsteruferbebauung mitprägen."
+  Hoheluft-West:
+    - "Hoheluft-West ist einer der kleinsten Hamburger Stadtteile nach Fläche."
+    - "Die Hoheluftchaussee ist die zentrale Einkaufsstraße des Stadtteils."
+  Lokstedt:
+    - "Der Name Lokstedt wird bereits im 12. Jahrhundert urkundlich erwähnt."
+    - "Das NDR-Fernsehstudio liegt in Lokstedt."
+  Niendorf:
+    - "Das Niendorfer Gehege ist ein großer Waldpark mit Wildgehege."
+    - "Der Niendorfer Marktplatz ist über die U-Bahn-Linie U2 erreichbar."
+  Rotherbaum:
+    - "Am Rothenbaum findet jährlich das traditionsreiche Hamburg Open Tennis-Turnier statt."
+    - "Das Grindelviertel in Rotherbaum war vor 1933 Zentrum jüdischen Lebens in Hamburg."
+  Schnelsen:
+    - "Schnelsen war bis 1937 eine eigenständige Gemeinde in Schleswig-Holstein."
+    - "Der Wassermannpark bietet im dicht besiedelten Stadtteil viel Freiraum."
+  Stellingen:
+    - "In Stellingen liegt die 1907 eröffnete Anlage von Hagenbecks Tierpark."
+    - "Die Barclaycard Arena liegt unmittelbar südwestlich von Stellingen."
+  Billbrook:
+    - "Billbrook ist eines der größten zusammenhängenden Industriegebiete Hamburgs."
+    - "Der Billekanal verbindet Billbrook mit dem Hamburger Kanalsystem."
+  Billstedt:
+    - "Im Stadtteil Billstedt liegt der Öjendorfer Park mit seinem großen Badesee."
+    - "Das Einkaufszentrum Billstedt Center liegt am U-Bahnhof Billstedt."
+  Borgfelde:
+    - "Borgfelde wurde im Zweiten Weltkrieg stark zerstört und danach weitgehend neu bebaut."
+    - "Borgfelde liegt nur wenige U-Bahn-Stationen vom Hamburger Hauptbahnhof entfernt."
+  Finkenwerder:
+    - "Finkenwerder ist ein traditioneller Elbfischerort und wichtiger Airbus-Standort."
+    - "Die Fähre 62 verbindet Finkenwerder über die Elbe mit den Landungsbrücken."
+  HafenCity:
+    - "Die HafenCity zählt zu den größten innerstädtischen Stadtentwicklungsprojekten Europas."
+    - "Die Elbphilharmonie steht an der westlichen Spitze der HafenCity."
+  Hamburg-Altstadt:
+    - "In der Hamburg-Altstadt stehen das Rathaus und die Kirche St. Petri."
+    - "Die Speicherstadt grenzt unmittelbar südlich an die Altstadt."
+  Hamm:
+    - "Der Hammer Park geht auf einen Landsitz aus dem 18. Jahrhundert zurück."
+    - "Der Hammer Park wurde nach dem Zweiten Weltkrieg als Volkspark neugestaltet."
+  Hammerbrook:
+    - "Hammerbrook wurde im 19. Jahrhundert als planmäßig angelegtes Industrie- und Wohnquartier geschaffen."
+    - "Der Stadtteil ist von Fleeten und Kanälen zwischen Bille und Innenstadt geprägt."
+  Horn:
+    - "Die Galopprennbahn Hamburg-Horn ist Austragungsort des Deutschen Derbys."
+    - "Der Blohms Park ist eine grüne Oase mitten in Horn."
+  Kleiner Grasbrook:
+    - "Auf dem Kleinen Grasbrook entsteht mit Grasbrook ein neues Stadtquartier."
+    - "Die U-Bahn-Linie U4 soll den Stadtteil künftig besser anbinden."
+  Neustadt:
+    - "Die Hauptkirche St. Michaelis, der Michel, steht in der Hamburger Neustadt."
+    - "Die Neustadt umfasst auch die historische Straße der Krameramtsstuben."
+  Neuwerk:
+    - "Neuwerk ist eine Hamburger Nordseeinsel rund 100 Kilometer vom Stadtzentrum entfernt."
+    - "Bei Ebbe ist Neuwerk über einen Wattwagenweg vom Festland aus erreichbar."
+  Rothenburgsort:
+    - "Rothenburgsort liegt an der Elbe und wurde im Zweiten Weltkrieg besonders schwer getroffen."
+    - "Die Bille mündet am Rand von Rothenburgsort in die Elbe."
+  St. Georg:
+    - "St. Georg ist Heimat des Hamburger Hauptbahnhofs, des größten Bahnhofs Norddeutschlands."
+    - "Die Lange Reihe ist für ihre Cafés, Restaurants und queere Szene bekannt."
+  St. Pauli:
+    - "Auf St. Pauli liegen die Reeperbahn und der FC St. Pauli am Millerntor."
+    - "Der Hamburger Dom findet dreimal im Jahr auf dem Heiligengeistfeld statt."
+  Steinwerder:
+    - "Steinwerder gehört zum Hamburger Hafen und liegt südlich der Norderelbe."
+    - "Die St. Pauli-Elbtunnel-Röhre verbindet Steinwerder mit den Landungsbrücken."
+  Veddel:
+    - "Die Veddel ist über die historische Freihafen-Elbbrücke mit der Innenstadt verbunden."
+    - "Die Internationale Bauausstellung 2013 setzte auf der Veddel mehrere Projekte um."
+  Waltershof:
+    - "Waltershof beherbergt mit dem Container Terminal Burchardkai einen der größten Containerterminals Europas."
+    - "Der Alte Elbtunnel verbindet Waltershof unter der Elbe mit St. Pauli."
+  Wilhelmsburg:
+    - "Wilhelmsburg ist flächenmäßig Hamburgs größter Elbinsel-Stadtteil."
+    - "Die Internationale Gartenschau 2013 fand in Wilhelmsburg statt."
+  Alsterdorf:
+    - "In Alsterdorf befindet sich das historische Ensemble der Evangelischen Stiftung Alsterdorf."
+    - "Die U-Bahn-Linie U1 erschließt Alsterdorf über den Bahnhof Alsterdorf."
+  Barmbek-Nord:
+    - "Der Stadtparksee liegt direkt an der Grenze von Barmbek-Nord und Winterhude."
+    - "Das Quartier um die Fuhle ist das geschäftige Zentrum von Barmbek-Nord."
+  Barmbek-Süd:
+    - "Das Museum der Arbeit in Barmbek-Süd erzählt Hamburger Industriegeschichte in einer ehemaligen Fabrik."
+    - "Der Osterbekkanal führt durch Barmbek-Süd zur Alster."
+  Dulsberg:
+    - "Dulsberg ist für seine Backsteinbauten aus den 1920er Jahren bekannt."
+    - "Die Wohnanlagen von Dulsberg gelten als bedeutendes Beispiel des Hamburger Backsteinexpressionismus."
+  Eppendorf:
+    - "Das Universitätsklinikum Hamburg-Eppendorf ist einer der größten Arbeitgeber der Stadt."
+    - "Der Isemarkt unter dem U-Bahn-Viadukt zählt zu den längsten Wochenmärkten Europas."
+  Fuhlsbüttel:
+    - "Der Hamburger Flughafen liegt überwiegend in Fuhlsbüttel."
+    - "Der Flughafen Hamburg wurde 1911 eröffnet und ist der älteste noch bestehende Verkehrsflughafen Deutschlands."
+  Groß Borstel:
+    - "Groß Borstel liegt nahe dem Flughafen, bewahrt aber einen auffallend grünen Charakter."
+    - "Das Stavenhagenhaus ist ein Kulturzentrum in einem ehemaligen Herrenhaus."
+  Hoheluft-Ost:
+    - "Hoheluft-Ost ist ein dicht bebauter Gründerzeitstadtteil zwischen Eppendorf und Eimsbüttel."
+    - "Die U-Bahn-Station Hoheluftbrücke liegt direkt an der Grenze zu Hoheluft-West."
+  Hohenfelde:
+    - "Der Kuhmühlenteich in Hohenfelde ist Teil des Hamburger Alsterkanalnetzes."
+    - "Die Alsterschwimmhalle in Hohenfelde wird wegen ihrer Form auch Schwimmoper genannt."
+  Langenhorn:
+    - "Langenhorn besitzt mit dem Langenhorner Markt ein wichtiges Zentrum im Hamburger Norden."
+    - "Die U1 verbindet Langenhorn direkt mit der Innenstadt."
+  Ohlsdorf:
+    - "Der Ohlsdorfer Friedhof ist der größte Parkfriedhof der Welt."
+    - "Auf dem Ohlsdorfer Friedhof fahren sogar zwei Buslinien."
+  Uhlenhorst:
+    - "Die Außenalster bildet die Westgrenze von Uhlenhorst."
+    - "Die Alsterperle am Uhlenhorster Weg ist ein beliebter Treffpunkt am Wasser."
+  Winterhude:
+    - "Der Hamburger Stadtpark mit Planetarium liegt in Winterhude."
+    - "Das Planetarium Hamburg befindet sich in einem ehemaligen Wasserturm."
+  Altenwerder:
+    - "Altenwerder wurde fast vollständig für die Hafenerweiterung umgesiedelt."
+    - "Die Kirche St. Gertrud blieb als letztes sichtbares Relikt des alten Dorfes erhalten."
+  Cranz:
+    - "Cranz ist für den Obstbau im Alten Land und seine Elblage bekannt."
+    - "Von Cranz fährt eine Fähre über die Elbe nach Blankenese."
+  Eißendorf:
+    - "Eißendorf liegt an den bewaldeten Harburger Bergen."
+    - "Der Eißendorfer Forst ist Teil eines großen Waldgebiets im Süden Hamburgs."
+  Francop:
+    - "Francop gehört zum Alten Land, einem der größten zusammenhängenden Obstanbaugebiete Europas."
+  Gut Moor:
+    - "Gut Moor ist ein kleiner, von Grün- und Moorflächen geprägter Stadtteil."
+  Harburg:
+    - "Harburg war bis 1937 eine eigenständige Stadt in Preußen."
+    - "Der Harburger Binnenhafen wird schrittweise zu einem gemischten Wohn- und Arbeitsquartier entwickelt."
+  Hausbruch:
+    - "Hausbruch liegt am Rand der Harburger Berge und nahe der Fischbeker Heide."
+  Heimfeld:
+    - "Die Technische Universität Hamburg hat ihren Campus in Heimfeld."
+    - "Der Harburger Stadtpark grenzt an Heimfeld."
+  Langenbek:
+    - "Langenbek entwickelte sich aus einem kleinen Dorf südöstlich von Harburg."
+  Marmstorf:
+    - "Marmstorf liegt auf einem Höhenzug am Rand der Harburger Berge."
+    - "Der Wildpark Schwarze Berge liegt unmittelbar südlich von Marmstorf."
+  Moorburg:
+    - "Moorburg war lange ein Elbmarschdorf und ist heute von Hafenanlagen umgeben."
+  Neuenfelde:
+    - "In Neuenfelde steht das Geburtshaus des Orgelbauers Arp Schnitger."
+    - "Die spätbarocke St.-Pankratius-Kirche besitzt eine berühmte Arp-Schnitger-Orgel."
+  Neugraben-Fischbek:
+    - "Die Fischbeker Heide in Neugraben-Fischbek ist ein großes Naturschutzgebiet mit Heideflächen."
+    - "Der S-Bahnhof Neugraben ist ein wichtiger Umsteigepunkt zur S-Bahn nach Stade."
+  Neuland:
+    - "Neuland liegt in der Elbmarsch östlich der Harburger Innenstadt."
+  Rönneburg:
+    - "Rönneburg ist ein dörflich geprägter Stadtteil im Süden Hamburgs."
+    - "Rönneburg besitzt noch einen historischen Dorfkern mit alten Bauernhäusern."
+  Sinstorf:
+    - "Sinstorf war bis 1937 eine Gemeinde im Landkreis Harburg."
+  Wilstorf:
+    - "Der Außenmühlenteich ist das prägende Gewässer am Rand von Wilstorf."
+    - "Das Phoenix-Viertel grenzt unmittelbar nördlich an Wilstorf."
+  Bergstedt:
+    - "Bergstedt liegt im Alstertal und umfasst viele Grün- und Waldflächen."
+    - "Der Rodenbeker Quellental ist ein beliebtes Ausflugsziel am Alsterwanderweg."
+  Bramfeld:
+    - "Bramfeld erhielt seinen Namen vermutlich von einem Ginsterfeld."
+    - "Die Osterkirche Bramfeld wurde in den 1960er Jahren gebaut."
+  Duvenstedt:
+    - "Das Duvenstedter Brook ist eines der bedeutendsten Moor- und Feuchtgebiete Hamburgs."
+    - "Der Alsterwanderweg führt durch Duvenstedt."
+  Eilbek:
+    - "Der Name Eilbek bedeutet auf Niederdeutsch Egelbach."
+    - "Die U-Bahn-Linie U1 hält am Bahnhof Ritterstraße in Eilbek."
+  Farmsen-Berne:
+    - "Farmsen-Berne entstand aus zwei historischen Dörfern im Alstertal."
+    - "Der U-Bahnhof Farmsen liegt an der Linie U1."
+  Hummelsbüttel:
+    - "Der Hummelsee ist ein beliebtes Naherholungsgebiet in Hummelsbüttel."
+    - "Der Hummelsbütteler Kirchenweg erinnert an die ländliche Vergangenheit des Stadtteils."
+  Jenfeld:
+    - "Jenfeld wurde 1937 nach Hamburg eingemeindet."
+    - "Der Jenfelder Moorpark ist ein wichtiger Grünraum des Stadtteils."
+  Lemsahl-Mellingstedt:
+    - "Lemsahl-Mellingstedt zählt zu den ländlichsten Stadtteilen im Hamburger Norden."
+    - "Der Stadtteil liegt am Oberlauf der Alster."
+  Marienthal:
+    - "Marienthal ist für seine villenartige Bebauung und den Wandsbeker Gehölzrand bekannt."
+    - "Der Wandsbeker Gehölzrand bietet Marienthal direkten Zugang zu einem großen Park."
+  Poppenbüttel:
+    - "Das Alstertal-Einkaufszentrum in Poppenbüttel wurde 1970 eröffnet."
+    - "Das Poppenbütteler Schleusenwärterhaus erinnert an die Geschichte der Alsterschifffahrt."
+  Rahlstedt:
+    - "Rahlstedt ist Hamburgs einwohnerstärkster Stadtteil."
+    - "Der Bahnhof Rahlstedt liegt an der Strecke zwischen Hamburg und Lübeck."
+  Sasel:
+    - "Sasel liegt am Oberlauf der Alster und hat einen historischen Dorfkern."
+    - "Das Saseler Moor ist ein kleines Naturschutzgebiet im Stadtteil."
+  Steilshoop:
+    - "Steilshoop ist eine Großwohnsiedlung, die ab den späten 1960er Jahren gebaut wurde."
+    - "Das Einkaufszentrum Steilshoop bildet das Zentrum der Großwohnsiedlung."
+  Tonndorf:
+    - "Tonndorf liegt am Wandse-Grünzug im Osten Hamburgs."
+    - "Der Bahnhof Tonndorf liegt an der Regionalbahnstrecke nach Lübeck."
+  Volksdorf:
+    - "Das Museumsdorf Volksdorf zeigt historische Gebäude aus der Region."
+    - "Die U-Bahn-Linie U1 endet im Norden Hamburgs in Volksdorf."
+  Wandsbek:
+    - "Wandsbek war bis 1937 eine selbstständige preußische Stadt."
+    - "Das Wandsbeker Quarree liegt im Zentrum des Stadtteils."
+  Wellingsbüttel:
+    - "Das Herrenhaus Wellingsbüttel ist ein barockes Gutshaus aus dem 18. Jahrhundert."
+    - "Der S-Bahnhof Wellingsbüttel liegt an der Alstertalbahn."
+  Wohldorf-Ohlstedt:
+    - "Wohldorf-Ohlstedt grenzt an den Duvenstedter Brook und gehört zu Hamburgs grünsten Stadtteilen."
+    - "Die U1 endet am Bahnhof Ohlstedt nahe der Alsterquelle."
